@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function authed() {
+      return request.auth != null;
+    }
+
+    function ownsUser(uid) {
+      return authed() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if ownsUser(uid);
+      allow create, update: if ownsUser(uid);
+    }
+
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if authed();
+      allow update, delete: if false;
+    }
+
+    match /bars/{barId} {
+      allow read: if true;
+      allow write: if authed();
+    }
+
+    match /checkins/{docId} {
+      allow read: if true;
+      allow create, update: if authed();
+      allow delete: if false;
+    }
+
+    match /activeCheckins/{uid} {
+      allow read: if ownsUser(uid);
+      allow create, update: if ownsUser(uid);
+    }
+
+    match /vibes/{docId} {
+      allow read: if true;
+      allow create, update: if authed();
+      allow delete: if false;
+    }
+
+    match /coverReports/{docId} {
+      allow read: if true;
+      allow create, update: if authed();
+      allow delete: if false;
+    }
+
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if authed();
+      allow update, delete: if false;
+    }
+
+    match /commentReactions/{reactionId} {
+      allow read: if true;
+      allow create, update, delete: if authed();
+    }
+  }
+}
