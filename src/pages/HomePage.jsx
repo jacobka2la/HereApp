@@ -58,9 +58,14 @@ export default function HomePage() {
     })
   ), [checkins, vibes, coverReports, comments, reactions, lineReports]);
 
-  const hottestBar = useMemo(() => [...msuBars].sort(
-    (a, b) => statsByBar[b.id].hottestScore - statsByBar[a.id].hottestScore
-  )[0], [statsByBar]);
+  const hottestBar = useMemo(() => {
+    const activeBars = msuBars.filter((bar) => (statsByBar[bar.id]?.count || 0) > 0);
+    if (!activeBars.length) return null;
+
+    return [...activeBars].sort(
+      (a, b) => statsByBar[b.id].hottestScore - statsByBar[a.id].hottestScore
+    )[0];
+  }, [statsByBar]);
 
   const filteredBars = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -97,7 +102,7 @@ export default function HomePage() {
                 key={bar.id}
                 bar={bar}
                 stats={statsByBar[bar.id]}
-                isHottest={hottestBar?.id === bar.id}
+                isHottest={Boolean(hottestBar && hottestBar.id === bar.id)}
               />
             ))}
           </div>
