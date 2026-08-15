@@ -102,6 +102,15 @@ export function subscribeToFriendsForUser(uid, callback) {
   });
 }
 
+export async function getPublicProfilesByUids(uids = []) {
+  const uniqueUids = [...new Set(uids.filter(Boolean))];
+  const profiles = await Promise.all(uniqueUids.map(async (uid) => {
+    const snap = await getDoc(doc(db, 'publicProfiles', uid));
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  }));
+  return Object.fromEntries(profiles.filter(Boolean).map((item) => [item.uid || item.id, item]));
+}
+
 export function subscribeToUserBarStats(uid, callback) {
   if (!uid) { callback([]); return () => {}; }
   const q = query(collection(db, 'userBarStats'), where('uid', '==', uid));
@@ -120,14 +129,9 @@ export function subscribeToHiddenCommentsForUser(uid, callback) {
 export async function findUserByUsername(username) {
   const clean = username.trim().toLowerCase();
   if (!clean) return null;
-
   const usernameQuery = query(collection(db, 'publicProfiles'), where('username', '==', clean));
   const usernameSnap = await getDocs(usernameQuery);
-  if (!usernameSnap.empty) {
-    const first = usernameSnap.docs[0];
-    return { id: first.id, ...first.data() };
-  }
-
+  if (!usernameSnap.empty) { const first = usernameSnap.docs[0]; return { id: first.id, ...first.data() }; }
   const displayQuery = query(collection(db, 'publicProfiles'), where('displayUsernameLower', '==', clean));
   const displaySnap = await getDocs(displayQuery);
   if (displaySnap.empty) return null;
@@ -165,42 +169,30 @@ export async function upsertCheckIn({ uid, username, barId }) {
   const userBarRef = doc(db, 'userBarStats', `${uid}_${barId}`);
   const userStatsRef = doc(db, 'userStats', uid);
   const newCheckinRef = doc(collection(db, 'checkins'));
-
   await runTransaction(db, async (transaction) => {
     const activeSnap = await transaction.get(activeRef);
     const userBarSnap = await transaction.get(userBarRef);
     const userStatsSnap = await transaction.get(userStatsRef);
     const activeData = activeSnap.exists() ? activeSnap.data() : null;
     const userStatsData = userStatsSnap.exists() ? userStatsSnap.data() : {};
-
     if (activeData?.barId) {
       if (activeData.barId === barId) throw new Error('ALREADY_CHECKED_IN');
       throw new Error(`ACTIVE_AT_OTHER_BAR_${activeData.barId}`);
     }
-
     const lastLeftAtMillis = userStatsData.lastLeftAtMillis ?? 0;
     const lastLeftBarId = userStatsData.lastLeftBarId ?? '';
     const elapsedSinceLeaving = lastLeftAtMillis ? now - lastLeftAtMillis : Number.POSITIVE_INFINITY;
-
-    if (lastLeftBarId === barId && elapsedSinceLeaving < SAME_BAR_REENTRY_COOLDOWN_MS) {
-      throw new Error(`SAME_BAR_COOLDOWN_${SAME_BAR_REENTRY_COOLDOWN_MS - elapsedSinceLeaving}`);
-    }
-
-    if (lastLeftBarId && lastLeftBarId !== barId && elapsedSinceLeaving < OTHER_BAR_REENTRY_COOLDOWN_MS) {
-      throw new Error(`OTHER_BAR_COOLDOWN_${OTHER_BAR_REENTRY_COOLDOWN_MS - elapsedSinceLeaving}`);
-    }
-
+    if (lastLeftBarId === barId && elapsedSinceLeaving < SAME_BAR_REENTRY_COOLDOWN_MS) throw new Error(`SAME_BAR_COOLDOWN_${SAME_BAR_REENTRY_COOLDOWN_MS - elapsedSinceLeaving}`);
+    if (lastLeftBarId && lastLeftBarId !== barId && elapsedSinceLeaving < OTHER_BAR_REENTRY_COOLDOWN_MS) throw new Error(`OTHER_BAR_COOLDOWN_${OTHER_BAR_REENTRY_COOLDOWN_MS - elapsedSinceLeaving}`);
     const currentVisitCount = userBarSnap.data()?.visitCount ?? 0;
     const previousTotalVisits = userStatsData.totalVisits ?? 0;
     const previousUniqueBars = userStatsData.uniqueBars ?? 0;
     const isFirstVisitToBar = !userBarSnap.exists();
-
     transaction.set(newCheckinRef, { uid, username, barId, dayKey, active: true, countedVisit: true, checkedInAt: serverTimestamp(), checkedInAtMillis: now, createdAt: serverTimestamp(), createdAtMillis: now });
     transaction.set(activeRef, { uid, username, barId, dayKey, checkinDocId: newCheckinRef.id, activeSinceAt: serverTimestamp(), activeSinceMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now });
     transaction.set(userBarRef, { uid, username, barId, visitCount: currentVisitCount + 1, firstVisitAt: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAt ?? serverTimestamp() : serverTimestamp(), firstVisitAtMillis: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAtMillis ?? now : now, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
     transaction.set(userStatsRef, { uid, username, totalVisits: previousTotalVisits + 1, uniqueBars: isFirstVisitToBar ? previousUniqueBars + 1 : previousUniqueBars, lastVisitBarId: barId, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   });
-
   const barMeta = msuBars.find((bar) => bar.id === barId);
   await notifyFriendsOfCheckIn({ uid, username, barId, barName: barMeta?.name || barId });
 }
@@ -209,67 +201,27 @@ export async function leaveBar(uid) {
   const now = Date.now();
   const activeRef = doc(db, 'activeCheckins', uid);
   const userStatsRef = doc(db, 'userStats', uid);
-
   await runTransaction(db, async (transaction) => {
     const activeSnap = await transaction.get(activeRef);
     const userStatsSnap = await transaction.get(userStatsRef);
     if (!activeSnap.exists()) return;
     const activeData = activeSnap.data();
-
-    if (activeData.checkinDocId) {
-      transaction.set(doc(db, 'checkins', activeData.checkinDocId), { active: false, leftAt: serverTimestamp(), leftAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
-    }
-
+    if (activeData.checkinDocId) transaction.set(doc(db, 'checkins', activeData.checkinDocId), { active: false, leftAt: serverTimestamp(), leftAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
     transaction.delete(activeRef);
     transaction.set(userStatsRef, { uid, username: activeData.username || userStatsSnap.data()?.username || '', lastLeftBarId: activeData.barId || '', lastLeftAt: serverTimestamp(), lastLeftAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   });
 }
 
-export async function updateVibe({ uid, username, barId, vibe }) {
-  const dayKey = getCurrentDayKey();
-  await setDoc(doc(db, 'vibes', `${uid}_${barId}_${dayKey}`), { uid, username, barId, vibe, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-}
-export async function updateCover({ uid, username, barId, range }) {
-  const dayKey = getCurrentDayKey();
-  await setDoc(doc(db, 'coverReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-}
-export async function updateLineLength({ uid, username, barId, lineLength }) {
-  const dayKey = getCurrentDayKey();
-  await setDoc(doc(db, 'lineReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, lineLength, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-}
-export async function addComment({ uid, username, avatarId = '', barId, text }) {
-  await addDoc(collection(db, 'comments'), { uid, username, avatarId, barId, text, hidden: false, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-}
+export async function updateVibe({ uid, username, barId, vibe }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'vibes', `${uid}_${barId}_${dayKey}`), { uid, username, barId, vibe, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
+export async function updateCover({ uid, username, barId, range }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'coverReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
+export async function updateLineLength({ uid, username, barId, lineLength }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'lineReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, lineLength, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
+export async function addComment({ uid, username, avatarId = '', barId, text }) { await addDoc(collection(db, 'comments'), { uid, username, avatarId, barId, text, hidden: false, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
 export async function deleteCommentById(commentId) { await deleteDoc(doc(db, 'comments', commentId)); }
 export async function hideCommentForUser({ uid, commentId }) { await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), { uid, commentId, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }); }
-
-export async function reportComment({ reporterUid, reporterUsername, commentId, commentOwnerUid, commentOwnerUsername, commentText, barId, barName }) {
-  await addDoc(collection(db, 'reports'), { type: 'comment', dayKey: getCurrentDayKey(), commentId, commentOwnerUid: commentOwnerUid || '', commentOwnerUsername: commentOwnerUsername || '', commentText: commentText || '', barId: barId || '', barName: barName || '', reporterUid: reporterUid || '', reporterUsername: reporterUsername || '', status: 'open', createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-  if (reporterUid && commentId) await hideCommentForUser({ uid: reporterUid, commentId });
-}
-
+export async function reportComment({ reporterUid, reporterUsername, commentId, commentOwnerUid, commentOwnerUsername, commentText, barId, barName }) { await addDoc(collection(db, 'reports'), { type: 'comment', dayKey: getCurrentDayKey(), commentId, commentOwnerUid: commentOwnerUid || '', commentOwnerUsername: commentOwnerUsername || '', commentText: commentText || '', barId: barId || '', barName: barName || '', reporterUid: reporterUid || '', reporterUsername: reporterUsername || '', status: 'open', createdAt: serverTimestamp(), createdAtMillis: Date.now() }); if (reporterUid && commentId) await hideCommentForUser({ uid: reporterUid, commentId }); }
 export async function hideComment(commentId) { await setDoc(doc(db, 'comments', commentId), { hidden: true, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }, { merge: true }); }
 export async function blockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayUnion(blockedUid) }); }
 export async function unblockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayRemove(blockedUid) }); }
-
-export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message }) {
-  const now = Date.now();
-  const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`);
-  const cooldownSnap = await getDoc(cooldownRef);
-  if (cooldownSnap.exists()) {
-    const lastSentAtMillis = cooldownSnap.data()?.lastSentAtMillis ?? 0;
-    if (lastSentAtMillis && now - lastSentAtMillis < INVITE_COOLDOWN_MS) throw new Error('COOLDOWN');
-  }
-  await addDoc(collection(db, 'invites'), { fromUid, fromUsername, toUid, toUsername: toUsername.trim().toLowerCase(), barId, barName, message, status: 'pending', createdAt: serverTimestamp(), createdAtMillis: now });
-  await setDoc(cooldownRef, { fromUid, toUid, barId, lastSentAt: serverTimestamp(), lastSentAtMillis: now });
-  await createNotification({ toUid, type: 'invite', title: `@${fromUsername} invited you out`, body: message || `Come to ${barName}, it's packed!`, fromUid, fromUsername, barId, barName });
-}
-
+export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message }) { const now = Date.now(); const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`); const cooldownSnap = await getDoc(cooldownRef); if (cooldownSnap.exists()) { const lastSentAtMillis = cooldownSnap.data()?.lastSentAtMillis ?? 0; if (lastSentAtMillis && now - lastSentAtMillis < INVITE_COOLDOWN_MS) throw new Error('COOLDOWN'); } await addDoc(collection(db, 'invites'), { fromUid, fromUsername, toUid, toUsername: toUsername.trim().toLowerCase(), barId, barName, message, status: 'pending', createdAt: serverTimestamp(), createdAtMillis: now }); await setDoc(cooldownRef, { fromUid, toUid, barId, lastSentAt: serverTimestamp(), lastSentAtMillis: now }); await createNotification({ toUid, type: 'invite', title: `@${fromUsername} invited you out`, body: message || `Come to ${barName}, it's packed!`, fromUid, fromUsername, barId, barName }); }
 export async function dismissInvite(inviteId) { await setDoc(doc(db, 'invites', inviteId), { status: 'dismissed', updatedAt: serverTimestamp(), updatedAtMillis: Date.now() }, { merge: true }); }
-
-export async function toggleReaction({ uid, username, commentId, emoji }) {
-  const ref = doc(db, 'commentReactions', `${commentId}_${uid}`);
-  const snap = await getDoc(ref);
-  if (snap.exists() && snap.data().emoji === emoji) { await deleteDoc(ref); return; }
-  await setDoc(ref, { uid, username, commentId, emoji, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-}
+export async function toggleReaction({ uid, username, commentId, emoji }) { const ref = doc(db, 'commentReactions', `${commentId}_${uid}`); const snap = await getDoc(ref); if (snap.exists() && snap.data().emoji === emoji) { await deleteDoc(ref); return; } await setDoc(ref, { uid, username, commentId, emoji, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
