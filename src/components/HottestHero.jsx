@@ -4,7 +4,6 @@ export default function HottestHero({ bar, stats }) {
   if (!bar || !stats || stats.count === 0) {
     return (
       <section className="hero-card hero-card-empty">
-        <span className="hero-kicker">Hottest Bar Right Now</span>
         <h1>No Activity Right Now</h1>
         <p>Nobody’s Checked In Yet. Be The First One Out.</p>
       </section>
