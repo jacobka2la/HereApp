@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Layout from '../components/Layout';
 import CommentItem from '../components/CommentItem';
@@ -163,6 +163,7 @@ export default function BarDetailPage() {
   const { barId } = useParams();
   const { firebaseUser, profile } = useAuth();
   const bar = getBarMeta(barId);
+  const checkInFlightRef = useRef(false);
 
   const [checkins, setCheckins] = useState([]);
   const [vibes, setVibes] = useState([]);
@@ -173,6 +174,7 @@ export default function BarDetailPage() {
   const [hiddenComments, setHiddenComments] = useState([]);
   const [commentText, setCommentText] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [checkingIn, setCheckingIn] = useState(false);
 
   useEffect(() => {
     const unsubscribers = [
@@ -252,6 +254,11 @@ export default function BarDetailPage() {
   }, [stats.comments, firebaseUser?.uid, profile?.blockedUsers, hiddenComments]);
 
   const handleCheckIn = async () => {
+    if (checkInFlightRef.current || checkingIn || isCheckedIntoThisBar) return;
+
+    checkInFlightRef.current = true;
+    setCheckingIn(true);
+
     try {
       await upsertCheckIn({
         uid: firebaseUser.uid,
@@ -260,8 +267,10 @@ export default function BarDetailPage() {
       });
       setFeedback(`You're now checked into ${bar.name}.`);
     } catch (error) {
-      console.error('Check in error:', error);
       setFeedback(getCheckInErrorMessage(error, barId));
+    } finally {
+      checkInFlightRef.current = false;
+      setCheckingIn(false);
     }
   };
 
@@ -270,7 +279,6 @@ export default function BarDetailPage() {
       await leaveBar(firebaseUser.uid);
       setFeedback(`You left ${bar.name}.`);
     } catch (err) {
-      console.error('Error leaving bar:', err);
       setFeedback(getLeaveErrorMessage(err));
     }
   };
@@ -387,7 +395,6 @@ export default function BarDetailPage() {
     }
 
     const cleanText = commentText.trim();
-
     if (!cleanText) return;
 
     if (containsBannedWords(cleanText)) {
@@ -428,9 +435,7 @@ export default function BarDetailPage() {
   };
 
   const handleReportComment = async (comment) => {
-    if (comment.isHiddenForUser) {
-      return;
-    }
+    if (comment.isHiddenForUser) return;
 
     try {
       await reportComment({
@@ -446,7 +451,6 @@ export default function BarDetailPage() {
 
       setFeedback('Comment reported.');
     } catch (error) {
-      console.error('Report error:', error);
       setFeedback('Could not report comment right now.');
     }
   };
@@ -459,7 +463,6 @@ export default function BarDetailPage() {
       await deleteCommentById(comment.id);
       setFeedback('Comment deleted.');
     } catch (error) {
-      console.error('Delete comment error:', error);
       setFeedback('Could not delete comment right now.');
     }
   };
@@ -490,7 +493,6 @@ export default function BarDetailPage() {
 
       setFeedback('User blocked.');
     } catch (error) {
-      console.error('Block user error:', error);
       setFeedback('Could not block user right now.');
     }
   };
@@ -505,285 +507,79 @@ export default function BarDetailPage() {
 
   return (
     <Layout>
-      <section className="detail-grid">
-        <div className="detail-primary">
-          <div className="detail-card detail-hero">
-            <span className="hero-kicker">{bar.neighborhood}</span>
-            <h1>{bar.name}</h1>
-            <p className="detail-vibe">{stats.currentVibeLabel}</p>
+      <div className="bar-detail-page">
+        <Link to="/" className="bar-back-button" aria-label="Back to bars">
+          ← Back To Bars
+        </Link>
 
-            <div className="hero-stats hero-stats-tight">
-              <div>
-                <span className="label">Checked in</span>
-                <strong>{stats.count}</strong>
+        <section className="detail-grid">
+          <div className="detail-primary">
+            <div className="detail-card detail-hero">
+              <span className="hero-kicker">{bar.neighborhood}</span>
+              <h1>{bar.name}</h1>
+              <p className="detail-vibe">{stats.currentVibeLabel}</p>
+
+              <div className="hero-stats hero-stats-tight">
+                <div><span className="label">Checked In</span><strong>{stats.count}</strong></div>
+                <div><span className="label">Cover</span><strong>{stats.coverSummary ? `${stats.coverSummary.label} · ${stats.coverSummary.count} Reports` : 'No Reports Yet'}</strong></div>
+                <div><span className="label">Line</span><strong>{stats.lineSummary ? `${stats.lineSummary.label} · ${stats.lineSummary.count} Reports` : 'No Reports Yet'}</strong></div>
+                <div><span className="label">Your Status</span><strong>{myCheckin?.barId === barId ? 'You Are Here' : 'Not Checked In'}</strong></div>
               </div>
-              <div>
-                <span className="label">Cover</span>
-                <strong>
-                  {stats.coverSummary
-                    ? `${stats.coverSummary.label} · ${stats.coverSummary.count} reports`
-                    : 'No reports yet'}
-                </strong>
+
+              <div className="action-stack">
+                {isCheckedIntoThisBar ? (
+                  <button className="primary-button" onClick={handleLeaveBar}>Leave Bar</button>
+                ) : (
+                  <button className="primary-button" onClick={handleCheckIn} disabled={checkingIn}>
+                    {checkingIn ? 'Checking In…' : 'I’m Here'}
+                  </button>
+                )}
               </div>
-              <div>
-                <span className="label">Line</span>
-                <strong>
-                  {stats.lineSummary
-                    ? `${stats.lineSummary.label} · ${stats.lineSummary.count} reports`
-                    : 'No reports yet'}
-                </strong>
-              </div>
-              <div>
-                <span className="label">Your status</span>
-                <strong>{myCheckin?.barId === barId ? 'You are here' : 'Not checked in'}</strong>
-              </div>
+
+              {feedback ? <div className="info-banner">{feedback}</div> : null}
             </div>
 
-            <div className="action-stack">
-              {isCheckedIntoThisBar ? (
-                <button className="primary-button" onClick={handleLeaveBar}>
-                  Leave Bar
-                </button>
-              ) : (
-                <button className="primary-button" onClick={handleCheckIn}>
-                  I’m here
-                </button>
-              )}
+            <div className="detail-card">
+              <div className="section-headline small-gap"><div><h2>Update The Vibe</h2><p>One vibe per user at a time. New vote replaces your old one.</p></div></div>
+              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.` : 'Check into this bar first to update the vibe.'}</p> : null}
+              <div className="chip-grid">{vibeOptions.map((option) => <button key={option.value} className={`select-chip ${myVibe === option.value ? 'select-chip-active' : ''}`} onClick={() => handleVibe(option.value)} disabled={!isCheckedIntoThisBar}>{option.label}</button>)}</div>
             </div>
 
-            {feedback ? <div className="info-banner">{feedback}</div> : null}
-          </div>
-
-          <div className="detail-card">
-            <div className="section-headline small-gap">
-              <div>
-                <h2>Update the vibe</h2>
-                <p>One vibe per user at a time. New vote replaces your old one.</p>
-              </div>
+            <div className="detail-card">
+              <div className="section-headline small-gap"><div><h2>Report Cover</h2><p>Pick the closest range. The app shows the most reported one.</p></div></div>
+              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.` : 'Check into this bar first to report cover.'}</p> : null}
+              <div className="chip-grid">{coverRanges.map((range) => <button key={range} className={`select-chip ${myCover === range ? 'select-chip-active' : ''}`} onClick={() => handleCover(range)} disabled={!isCheckedIntoThisBar}>{range}</button>)}</div>
             </div>
 
-            {!isCheckedIntoThisBar ? (
-              <p className="bar-lock-note">
-                {myCheckin?.barId
-                  ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.`
-                  : 'Check into this bar first to update the vibe.'}
-              </p>
-            ) : null}
+            <div className="detail-card">
+              <div className="section-headline small-gap"><div><h2>Report Line Length</h2><p>This is the useful stuff people actually care about before they pull up.</p></div></div>
+              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.` : 'Check into this bar first to report the line.'}</p> : null}
+              <div className="chip-grid">{lineOptions.map((option) => <button key={option} className={`select-chip ${myLine === option ? 'select-chip-active' : ''}`} onClick={() => handleLineLength(option)} disabled={!isCheckedIntoThisBar}>{option}</button>)}</div>
+            </div>
 
-            <div className="chip-grid">
-              {vibeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  className={`select-chip ${myVibe === option.value ? 'select-chip-active' : ''}`}
-                  onClick={() => handleVibe(option.value)}
-                  disabled={!isCheckedIntoThisBar}
-                >
-                  {option.label}
-                </button>
-              ))}
+            <div className="detail-card">
+              <div className="section-headline small-gap"><div><h2>Crowd Trend</h2><p>Quick view of check-in activity over the last hour.</p></div></div>
+              <div className="chart-wrap"><ResponsiveContainer width="100%" height={240}><AreaChart data={stats.trendSeries}><defs><linearGradient id="crowdFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#5BFF8A" stopOpacity={0.45} /><stop offset="100%" stopColor="#5BFF8A" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="label" tick={{ fill: '#A8B6AE' }} axisLine={false} tickLine={false} /><YAxis tick={{ fill: '#A8B6AE' }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip contentStyle={{ background: '#0E1511', border: '1px solid #213128', borderRadius: 14 }} /><Area type="monotone" dataKey="crowd" stroke="#5BFF8A" fill="url(#crowdFill)" strokeWidth={2.5} /></AreaChart></ResponsiveContainer></div>
             </div>
           </div>
 
-          <div className="detail-card">
-            <div className="section-headline small-gap">
-              <div>
-                <h2>Report cover</h2>
-                <p>Pick the closest range. The app shows the most reported one.</p>
-              </div>
-            </div>
-
-            {!isCheckedIntoThisBar ? (
-              <p className="bar-lock-note">
-                {myCheckin?.barId
-                  ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.`
-                  : 'Check into this bar first to report cover.'}
-              </p>
-            ) : null}
-
-            <div className="chip-grid">
-              {coverRanges.map((range) => (
-                <button
-                  key={range}
-                  className={`select-chip ${myCover === range ? 'select-chip-active' : ''}`}
-                  onClick={() => handleCover(range)}
-                  disabled={!isCheckedIntoThisBar}
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="detail-card">
-            <div className="section-headline small-gap">
-              <div>
-                <h2>Report line length</h2>
-                <p>This is the useful stuff people actually care about before they pull up.</p>
-              </div>
-            </div>
-
-            {!isCheckedIntoThisBar ? (
-              <p className="bar-lock-note">
-                {myCheckin?.barId
-                  ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.`
-                  : 'Check into this bar first to report the line.'}
-              </p>
-            ) : null}
-
-            <div className="chip-grid">
-              {lineOptions.map((option) => (
-                <button
-                  key={option}
-                  className={`select-chip ${myLine === option ? 'select-chip-active' : ''}`}
-                  onClick={() => handleLineLength(option)}
-                  disabled={!isCheckedIntoThisBar}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="detail-card">
-            <div className="section-headline small-gap">
-              <div>
-                <h2>Crowd trend</h2>
-                <p>Quick view of check-in activity over the last hour.</p>
-              </div>
-            </div>
-
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={stats.trendSeries}>
-                  <defs>
-                    <linearGradient id="crowdFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#5BFF8A" stopOpacity={0.45} />
-                      <stop offset="100%" stopColor="#5BFF8A" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="label" tick={{ fill: '#A8B6AE' }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fill: '#A8B6AE' }}
-                    axisLine={false}
-                    tickLine={false}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#0E1511',
-                      border: '1px solid #213128',
-                      borderRadius: 14,
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="crowd"
-                    stroke="#5BFF8A"
-                    fill="url(#crowdFill)"
-                    strokeWidth={2.5}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        <aside className="detail-sidebar">
-          <div className="detail-card">
-            <div className="section-headline small-gap">
-              <div>
-                <h2>Comments</h2>
-                <p>
-                  Username only. Everything resets at 4AM Eastern. Tap “Report” on any comment
-                  that breaks community rules.
-                </p>
-              </div>
-            </div>
-
-            <form className="comment-form" onSubmit={handleComment}>
-              <textarea
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-                placeholder="Line's moving fast, DJ is solid, cover jumped..."
-                maxLength={180}
-              />
-              <button className="primary-button" type="submit" disabled={!isCheckedIntoThisBar}>
-                Post comment
-              </button>
-            </form>
-
-            <div className="comment-stack">
-              {visibleComments.length ? (
-                visibleComments.map((comment) => {
-                  const reactionCounts = Object.fromEntries(
-                    ['🔥', '👀', '🍻'].map((emoji) => [emoji, 0])
-                  );
-
-                  stats.reactions
-                    .filter((item) => item.commentId === comment.id)
-                    .forEach((item) => {
-                      reactionCounts[item.emoji] = (reactionCounts[item.emoji] ?? 0) + 1;
-                    });
-
+          <aside className="detail-sidebar">
+            <div className="detail-card">
+              <div className="section-headline small-gap"><div><h2>Comments</h2><p>Username only. Everything resets at 4AM Eastern. Tap “Report” on any comment that breaks community rules.</p></div></div>
+              <form className="comment-form" onSubmit={handleComment}><textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Line's moving fast, DJ is solid, cover jumped..." maxLength={180} /><button className="primary-button" type="submit" disabled={!isCheckedIntoThisBar}>Post Comment</button></form>
+              <div className="comment-stack">
+                {visibleComments.length ? visibleComments.map((comment) => {
+                  const reactionCounts = Object.fromEntries(['🔥', '👀', '🍻'].map((emoji) => [emoji, 0]));
+                  stats.reactions.filter((item) => item.commentId === comment.id).forEach((item) => { reactionCounts[item.emoji] = (reactionCounts[item.emoji] ?? 0) + 1; });
                   const isOwnComment = comment.uid === firebaseUser?.uid;
                   const isHiddenForUser = comment.isHiddenForUser === true;
-
-                  return (
-                    <div key={comment.id} style={{ marginBottom: '14px' }}>
-                      <CommentItem
-                        comment={comment}
-                        reactionCounts={reactionCounts}
-                        activeReaction={myCommentReactions[comment.id]}
-                        onReact={isHiddenForUser ? () => {} : handleReaction}
-                      />
-
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '8px',
-                          flexWrap: 'wrap',
-                          marginTop: '8px',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className="ghost-button"
-                          onClick={() => handleReportComment(comment)}
-                          disabled={isHiddenForUser}
-                        >
-                          Report
-                        </button>
-
-                        {!isOwnComment && !isHiddenForUser ? (
-                          <button
-                            type="button"
-                            className="ghost-button"
-                            onClick={() => handleBlockUser(comment)}
-                          >
-                            Block user
-                          </button>
-                        ) : null}
-
-                        {isOwnComment && !isHiddenForUser ? (
-                          <button
-                            type="button"
-                            className="ghost-button"
-                            onClick={() => handleDeleteComment(comment)}
-                          >
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="empty-state">No comments yet. Be the first one.</div>
-              )}
+                  return <div key={comment.id} style={{ marginBottom: '14px' }}><CommentItem comment={comment} reactionCounts={reactionCounts} activeReaction={myCommentReactions[comment.id]} onReact={isHiddenForUser ? () => {} : handleReaction} /><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}><button type="button" className="ghost-button" onClick={() => handleReportComment(comment)} disabled={isHiddenForUser}>Report</button>{!isOwnComment && !isHiddenForUser ? <button type="button" className="ghost-button" onClick={() => handleBlockUser(comment)}>Block User</button> : null}{isOwnComment && !isHiddenForUser ? <button type="button" className="ghost-button" onClick={() => handleDeleteComment(comment)}>Delete</button> : null}</div></div>;
+                }) : <div className="empty-state">No Comments Yet. Be The First One.</div>}
+              </div>
             </div>
-          </div>
-        </aside>
-      </section>
+          </aside>
+        </section>
+      </div>
     </Layout>
   );
 }
