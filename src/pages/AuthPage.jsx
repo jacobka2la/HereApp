@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const AVATAR_SIGNUP_FLAG = 'here_needs_avatar_after_signup';
+
 export default function AuthPage() {
   const { signUp, logIn, isAuthed, authLoading, profile } = useAuth();
   const [isSignup, setIsSignup] = useState(true);
@@ -12,7 +14,11 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  if (!authLoading && isAuthed) return <Navigate to={profile?.avatarId ? '/' : '/pick-avatar'} replace />;
+  const needsSignupAvatar = sessionStorage.getItem(AVATAR_SIGNUP_FLAG) === '1';
+
+  if (!authLoading && isAuthed) {
+    return <Navigate to={needsSignupAvatar && !profile?.avatarId ? '/pick-avatar' : '/'} replace />;
+  }
 
   const handleSubmit = async (event) => {
     event.preventDefault(); setError(''); setSubmitting(true);
@@ -22,8 +28,17 @@ export default function AuthPage() {
         if (!validUsername.test(username)) throw new Error('Username must be 5-15 characters, use only letters, numbers, or underscores, and include at least 1 number.');
         if (password.length < 8) throw new Error('PASSWORD_TOO_SHORT');
         if (!agreedToTerms) throw new Error('MUST_ACCEPT_TERMS');
-        await signUp({ email, password, username });
-      } else await logIn(email, password);
+        sessionStorage.setItem(AVATAR_SIGNUP_FLAG, '1');
+        try {
+          await signUp({ email, password, username });
+        } catch (error) {
+          sessionStorage.removeItem(AVATAR_SIGNUP_FLAG);
+          throw error;
+        }
+      } else {
+        sessionStorage.removeItem(AVATAR_SIGNUP_FLAG);
+        await logIn(email, password);
+      }
     } catch (err) {
       let message = 'Something went wrong. Try again.';
       if (err.message === 'USERNAME_TAKEN') message = 'This username is already taken.';
