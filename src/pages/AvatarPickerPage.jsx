@@ -10,6 +10,7 @@ export default function AvatarPickerPage() {
   const navigate = useNavigate();
   const { firebaseUser, profile, authLoading, setAvatarOnce } = useAuth();
   const [selected, setSelected] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,9 +22,18 @@ export default function AvatarPickerPage() {
   }
   if (sessionStorage.getItem(AVATAR_SIGNUP_FLAG) !== '1') return <Navigate to="/" replace />;
 
+  const selectedAvatar = avatars.find((avatar) => avatar.id === selected) || null;
+
   const selectAvatar = (avatarId) => {
     if (saving) return;
     setSelected(avatarId);
+    setShowConfirm(false);
+    setError('');
+  };
+
+  const openConfirm = () => {
+    if (!selected || saving) return;
+    setShowConfirm(true);
     setError('');
   };
 
@@ -43,6 +53,7 @@ export default function AvatarPickerPage() {
         navigate('/', { replace: true });
         return;
       }
+      setShowConfirm(false);
       setError('Could Not Save Your Avatar. Try Again.');
     } finally {
       setSaving(false);
@@ -54,7 +65,7 @@ export default function AvatarPickerPage() {
       <div className="avatar-picker-inner">
         <div className="avatar-picker-heading">
           <h1>Pick Your Avatar</h1>
-          <p>Tap One To Preview Your Choice. Nothing Is Saved Until You Hit Confirm.</p>
+          <p>Choose One Below. You’ll Get One Last Chance To Confirm Before It’s Saved.</p>
         </div>
 
         <div className="avatar-grid">
@@ -81,21 +92,51 @@ export default function AvatarPickerPage() {
 
         {error ? <div className="error-banner">{error}</div> : null}
 
-        <div className={`avatar-confirm-dock ${selected ? 'avatar-confirm-dock-visible' : ''}`}>
+        <div className="avatar-confirm-dock">
           <div className="avatar-confirm-copy">
             <strong>{selected ? 'Avatar Selected' : 'Choose An Avatar'}</strong>
-            <span>{selected ? 'Tap Confirm To Lock It In.' : 'Pick One Above First.'}</span>
+            <span>{selected ? 'Ready? Tap Confirm Avatar.' : 'Pick One Above First.'}</span>
           </div>
           <button
             className="primary-button avatar-continue"
             type="button"
             disabled={!selected || saving}
-            onClick={confirmAvatar}
+            onClick={openConfirm}
           >
-            {saving ? 'Saving…' : 'Confirm Avatar'}
+            Confirm Avatar
           </button>
         </div>
       </div>
+
+      {showConfirm && selectedAvatar ? (
+        <div className="avatar-confirm-overlay" role="presentation">
+          <div className="avatar-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-confirm-title">
+            <img src={selectedAvatar.image} alt="" className="avatar-confirm-preview" />
+            <div className="avatar-confirm-modal-copy">
+              <h2 id="avatar-confirm-title">Are You Sure?</h2>
+              <p>You Won’t Be Able To Change Your Avatar After This.</p>
+            </div>
+            <div className="avatar-confirm-actions">
+              <button
+                type="button"
+                className="ghost-button avatar-change-button"
+                disabled={saving}
+                onClick={() => setShowConfirm(false)}
+              >
+                Change Avatar
+              </button>
+              <button
+                type="button"
+                className="primary-button avatar-final-confirm"
+                disabled={saving}
+                onClick={confirmAvatar}
+              >
+                {saving ? 'Saving…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
