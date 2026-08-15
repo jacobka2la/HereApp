@@ -178,8 +178,9 @@ export async function upsertCheckIn({ uid, username, barId }) {
     }
 
     const lastLeftAtMillis = userStatsData.lastLeftAtMillis ?? 0;
-    if (lastLeftAtMillis && now - lastLeftAtMillis < REENTRY_COOLDOWN_MS) {
-      throw new Error(`CHECKIN_COOLDOWN_${REENTRY_COOLDOWN_MS - (now - lastLeftAtMillis)}`);
+    const lastLeftBarId = userStatsData.lastLeftBarId ?? '';
+    if (lastLeftBarId === barId && lastLeftAtMillis && now - lastLeftAtMillis < REENTRY_COOLDOWN_MS) {
+      throw new Error(`SAME_BAR_COOLDOWN_${REENTRY_COOLDOWN_MS - (now - lastLeftAtMillis)}`);
     }
 
     const currentVisitCount = userBarSnap.data()?.visitCount ?? 0;
