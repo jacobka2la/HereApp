@@ -23,6 +23,16 @@ function formatDisplayUsername(username) {
   return username.trim();
 }
 
+function buildPublicProfile(userData) {
+  return {
+    uid: userData.uid,
+    username: userData.username,
+    displayUsername: userData.displayUsername || userData.username,
+    displayUsernameLower: (userData.displayUsername || userData.username || '').toLowerCase(),
+    updatedAt: serverTimestamp(),
+  };
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -35,7 +45,6 @@ export function AuthProvider({ children }) {
 
     const safetyTimeout = setTimeout(() => {
       if (isMounted) {
-        console.error('Auth load timed out');
         setProfile(null);
         setAuthLoading(false);
       }
@@ -58,12 +67,18 @@ export function AuthProvider({ children }) {
         const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
-          setProfile(userSnap.data());
+          const userData = userSnap.data();
+          setProfile(userData);
+
+          await setDoc(
+            doc(db, 'publicProfiles', user.uid),
+            buildPublicProfile(userData),
+            { merge: true }
+          );
         } else {
           setProfile(null);
         }
-      } catch (error) {
-        console.error('Auth state error:', error);
+      } catch {
         setProfile(null);
       } finally {
         if (isMounted) {
@@ -92,11 +107,13 @@ export function AuthProvider({ children }) {
       email: user.email,
       username: cleanUsername,
       displayUsername,
+      displayUsernameLower: displayUsername.toLowerCase(),
       blockedUsers: [],
       createdAt: serverTimestamp(),
     };
 
     await setDoc(doc(db, 'users', user.uid), userData);
+    await setDoc(doc(db, 'publicProfiles', user.uid), buildPublicProfile(userData));
 
     setProfile({
       ...userData,
@@ -120,29 +137,9 @@ export function AuthProvider({ children }) {
       throw new Error('No signed-in user found.');
     }
 
-    console.error('DELETE STEP 1: current user uid =', currentUser.uid);
-
-    try {
-      console.error('DELETE STEP 2: deleting Firestore user doc...');
-      await deleteDoc(doc(db, 'users', currentUser.uid));
-      console.error('DELETE STEP 3: Firestore user doc deleted');
-    } catch (firestoreError) {
-      console.error('DELETE FIRESTORE ERROR FULL:', firestoreError);
-      console.error('DELETE FIRESTORE ERROR CODE:', firestoreError?.code);
-      console.error('DELETE FIRESTORE ERROR MESSAGE:', firestoreError?.message);
-      throw firestoreError;
-    }
-
-    try {
-      console.error('DELETE STEP 4: deleting Firebase Auth user...');
-      await deleteUser(currentUser);
-      console.error('DELETE STEP 5: Firebase Auth user deleted');
-    } catch (authError) {
-      console.error('DELETE AUTH ERROR FULL:', authError);
-      console.error('DELETE AUTH ERROR CODE:', authError?.code);
-      console.error('DELETE AUTH ERROR MESSAGE:', authError?.message);
-      throw authError;
-    }
+    await deleteDoc(doc(db, 'publicProfiles', currentUser.uid));
+    await deleteDoc(doc(db, 'users', currentUser.uid));
+    await deleteUser(currentUser);
 
     setProfile(null);
     setFirebaseUser(null);
