@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 
-export default function BarCard({ bar, stats, isHottest }) {
+export default function BarCard({ bar, stats, isHottest, isCurrentBar = false }) {
   return (
-    <Link to={`/bar/${bar.id}`} className={`bar-card ${isHottest ? 'bar-card-hot' : ''}`}>
+    <Link to={`/bar/${bar.id}`} className={`bar-card ${isHottest ? 'bar-card-hot' : ''} ${isCurrentBar ? 'bar-card-current' : ''}`}>
       {bar.image ? (
         <div className="bar-card-photo-wrap">
           <img className="bar-card-photo" src={bar.image} alt={`${bar.name} bar`} loading="lazy" />
@@ -11,7 +11,10 @@ export default function BarCard({ bar, stats, isHottest }) {
             <h3>{bar.name}</h3>
             <p>{bar.neighborhood}</p>
           </div>
-          {isHottest ? <span className="status-pill hottest-pill bar-card-photo-pill">Hottest</span> : null}
+          <div className="bar-card-photo-badges">
+            {isCurrentBar ? <span className="status-pill current-bar-pill">You Are Here</span> : null}
+            {isHottest ? <span className="status-pill hottest-pill">Hottest</span> : null}
+          </div>
         </div>
       ) : (
         <div className="bar-card-topline">
@@ -19,7 +22,10 @@ export default function BarCard({ bar, stats, isHottest }) {
             <h3>{bar.name}</h3>
             <p>{bar.neighborhood}</p>
           </div>
-          {isHottest ? <span className="status-pill hottest-pill">Hottest</span> : null}
+          <div className="bar-card-photo-badges">
+            {isCurrentBar ? <span className="status-pill current-bar-pill">You Are Here</span> : null}
+            {isHottest ? <span className="status-pill hottest-pill">Hottest</span> : null}
+          </div>
         </div>
       )}
 
