@@ -86,15 +86,15 @@ export default function AuthPage() {
       <section className="auth-panel">
         <div className="auth-brand">
           <img src="/logo-full.png" alt="Here" className="auth-logo-clean" />
-          <p>Know where to go before you get there.</p>
+          <p>Know Where To Go Before You Get There.</p>
         </div>
 
         <div className="auth-heading">
-          <h1>{isSignup ? 'Create your account' : 'Welcome back'}</h1>
+          <h1>{isSignup ? 'Create Your Account' : 'Welcome Back'}</h1>
           <p>
             {isSignup
-              ? 'Join Here to check in, see live activity, and keep your own nightlife stats.'
-              : 'Log in to see what is happening around you.'}
+              ? 'Check In. See What’s Live. Build Your Nightlife Stats.'
+              : 'Log In To See What’s Happening Right Now.'}
           </p>
         </div>
 
@@ -109,7 +109,6 @@ export default function AuthPage() {
                 autoCorrect="off"
                 placeholder="ex. jacob24"
               />
-              <span className="field-help">5–15 characters · letters, numbers, or _ · must include a number</span>
             </label>
           ) : null}
 
@@ -134,14 +133,19 @@ export default function AuthPage() {
               autoComplete={isSignup ? 'new-password' : 'current-password'}
               placeholder="Enter your password"
             />
-            {isSignup ? <span className="field-help">At least 8 characters</span> : null}
           </label>
 
           {isSignup ? (
             <div className="signup-requirements" aria-label="Account requirements">
-              <div className="signup-requirements-title">Account requirements</div>
-              <div>Username: 5–15 characters, letters/numbers/underscores only, with at least 1 number.</div>
-              <div>Password: at least 8 characters.</div>
+              <div className="signup-requirements-title">Account Requirements</div>
+              <div className="requirement-row">
+                <span className="requirement-dot" />
+                <span><strong>Username:</strong> 5–15 characters, letters/numbers/underscores only, with at least 1 number.</span>
+              </div>
+              <div className="requirement-row">
+                <span className="requirement-dot" />
+                <span><strong>Password:</strong> At least 8 characters.</span>
+              </div>
             </div>
           ) : null}
 
@@ -152,8 +156,8 @@ export default function AuthPage() {
                 checked={agreedToTerms}
                 onChange={(event) => setAgreedToTerms(event.target.checked)}
               />
-              <span>
-                I agree to the <Link to="/terms">Terms</Link>, <Link to="/privacy">Privacy Policy</Link>, and{' '}
+              <span className="legal-check-copy">
+                I Agree To The <Link to="/terms">Terms</Link>, <Link to="/privacy">Privacy Policy</Link>, And{' '}
                 <Link to="/community-rules">Community Rules</Link>.
               </span>
             </label>
@@ -165,12 +169,12 @@ export default function AuthPage() {
             className="primary-button auth-submit"
             disabled={submitting || (isSignup && !agreedToTerms)}
           >
-            {submitting ? 'Please wait…' : isSignup ? 'Create account' : 'Log in'}
+            {submitting ? 'Please Wait…' : isSignup ? 'Create Account' : 'Log In'}
           </button>
         </form>
 
         <button className="text-button auth-switch" onClick={toggleMode}>
-          {isSignup ? 'Already have an account? Log in' : 'New to Here? Create an account'}
+          {isSignup ? 'Already Have An Account? Log In' : 'New To Here? Create An Account'}
         </button>
 
         <div className="auth-footer-links">
