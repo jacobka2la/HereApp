@@ -7,7 +7,7 @@ export default function CommentItem({ comment, reactionCounts, activeReaction, o
     <article className="comment-card">
       <div className="comment-topline">
         <div className="comment-author">
-          <UserAvatar username={comment.username} size="sm" />
+          <UserAvatar username={comment.username} avatarId={comment.avatarId} size="sm" />
           <strong className="comment-username">@{comment.username}</strong>
         </div>
         <span className="comment-time">{formatRelativeTime(comment.createdAtMillis)}</span>
