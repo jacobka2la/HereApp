@@ -9,7 +9,6 @@ import { subscribeToTodayCollection } from '../lib/firebaseHelpers';
 
 function summarizeLineReportsForBar(barId, lineReports) {
   const relevant = lineReports.filter((item) => item.barId === barId);
-
   if (!relevant.length) return null;
 
   const counts = relevant.reduce((acc, item) => {
@@ -18,13 +17,7 @@ function summarizeLineReportsForBar(barId, lineReports) {
   }, {});
 
   const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-
-  return winner
-    ? {
-        label: winner[0],
-        count: winner[1],
-      }
-    : null;
+  return winner ? { label: winner[0], count: winner[1] } : null;
 }
 
 export default function HomePage() {
@@ -45,38 +38,29 @@ export default function HomePage() {
       subscribeToTodayCollection('commentReactions', setReactions),
       subscribeToTodayCollection('lineReports', setLineReports),
     ];
-
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, []);
 
-  const statsByBar = useMemo(() => {
-    return Object.fromEntries(
-      msuBars.map((bar) => {
-        const baseStats = buildBarStats(
-          bar.id,
-          checkins,
-          vibes,
-          coverReports,
-          comments,
-          reactions
-        );
+  const statsByBar = useMemo(() => Object.fromEntries(
+    msuBars.map((bar) => {
+      const baseStats = buildBarStats(
+        bar.id,
+        checkins,
+        vibes,
+        coverReports,
+        comments,
+        reactions
+      );
+      return [bar.id, {
+        ...baseStats,
+        lineSummary: summarizeLineReportsForBar(bar.id, lineReports),
+      }];
+    })
+  ), [checkins, vibes, coverReports, comments, reactions, lineReports]);
 
-        return [
-          bar.id,
-          {
-            ...baseStats,
-            lineSummary: summarizeLineReportsForBar(bar.id, lineReports),
-          },
-        ];
-      })
-    );
-  }, [checkins, vibes, coverReports, comments, reactions, lineReports]);
-
-  const hottestBar = useMemo(() => {
-    return [...msuBars].sort(
-      (a, b) => statsByBar[b.id].hottestScore - statsByBar[a.id].hottestScore
-    )[0];
-  }, [statsByBar]);
+  const hottestBar = useMemo(() => [...msuBars].sort(
+    (a, b) => statsByBar[b.id].hottestScore - statsByBar[a.id].hottestScore
+  )[0], [statsByBar]);
 
   const filteredBars = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -86,38 +70,38 @@ export default function HomePage() {
   return (
     <Layout>
       <section className="home-stack">
-        <div style={{ marginBottom: '12px' }}>
-          <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 900 }}>
-            Tonight at MSU
-          </h1>
-          <p style={{ marginTop: '8px', color: 'rgba(235,255,240,0.72)' }}>
-            Live bar traffic, line reports, crowd signals, and check-ins.
-          </p>
-        </div>
+        <header className="home-intro">
+          <span className="eyebrow">East Lansing Tonight</span>
+          <h1>Tonight At MSU</h1>
+          <p>Live Bar Traffic, Line Reports, Crowd Signals, And Check-Ins.</p>
+        </header>
 
         <HottestHero
           bar={hottestBar}
           stats={hottestBar ? statsByBar[hottestBar.id] : null}
         />
 
-        <div className="section-headline">
-          <div>
-            <h2>All bars</h2>
-            <p>Search for a spot and open live details.</p>
+        <section className="bars-section">
+          <div className="section-headline section-headline-centered">
+            <div>
+              <h2>All Bars</h2>
+              <p>Find A Spot And Open Live Details.</p>
+            </div>
           </div>
-          <SearchBar value={search} onChange={setSearch} />
-        </div>
 
-        <div className="bar-list">
-          {filteredBars.map((bar) => (
-            <BarCard
-              key={bar.id}
-              bar={bar}
-              stats={statsByBar[bar.id]}
-              isHottest={hottestBar?.id === bar.id}
-            />
-          ))}
-        </div>
+          <SearchBar value={search} onChange={setSearch} />
+
+          <div className="bar-list">
+            {filteredBars.map((bar) => (
+              <BarCard
+                key={bar.id}
+                bar={bar}
+                stats={statsByBar[bar.id]}
+                isHottest={hottestBar?.id === bar.id}
+              />
+            ))}
+          </div>
+        </section>
       </section>
     </Layout>
   );
