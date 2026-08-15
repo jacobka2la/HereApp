@@ -52,7 +52,7 @@ const sections = {
       ['Block users', 'Use the block feature when you do not want to interact with another user.'],
       ['Delete your account', 'Open Profile and choose Delete Account to initiate permanent deletion. If Firebase requires a recent login, log out, sign back in, and try again.'],
       ['Privacy requests', 'Account deletion is available directly inside the app. Additional privacy choices may be added here as the service expands.'],
-      ['App review', 'Here’s backend services must remain available for account login and app functionality.'],
+      ['Contact', 'For support, account, privacy, or safety issues, contact here-msu@outlook.com.'],
     ],
   },
 };
