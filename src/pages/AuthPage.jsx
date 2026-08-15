@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthPage() {
@@ -27,7 +26,7 @@ export default function AuthPage() {
         const validUsername = /^(?=.*\d)[A-Za-z0-9_]{5,15}$/;
         if (!validUsername.test(username)) {
           throw new Error(
-            'Username must be 5-15 characters and include at least 1 number.'
+            'Username must be 5-15 characters, use only letters, numbers, or underscores, and include at least 1 number.'
           );
         }
 
@@ -44,10 +43,6 @@ export default function AuthPage() {
         await logIn(email, password);
       }
     } catch (err) {
-      console.log('AUTH ERROR FULL:', err);
-      console.log('AUTH ERROR CODE:', err?.code);
-      console.log('AUTH ERROR MESSAGE:', err?.message);
-
       let message = 'Something went wrong. Try again.';
 
       if (err.message === 'USERNAME_TAKEN') {
@@ -57,8 +52,7 @@ export default function AuthPage() {
       } else if (err.message === 'MUST_ACCEPT_TERMS') {
         message = 'You must agree to the Terms, Privacy Policy, and Community Rules before creating an account.';
       } else if (err.message?.includes('Username must be')) {
-        message =
-          'Username must be 5-15 characters and include at least 1 number.';
+        message = err.message;
       } else if (err.code === 'auth/invalid-credential') {
         message = 'Incorrect email or password.';
       } else if (err.code === 'auth/email-already-in-use') {
@@ -66,7 +60,7 @@ export default function AuthPage() {
       } else if (err.code === 'auth/invalid-email') {
         message = 'Enter a valid email address.';
       } else if (err.code === 'auth/weak-password') {
-        message = 'Password must be at least 6 characters.';
+        message = 'Password must be at least 8 characters.';
       } else if (err.code === 'auth/network-request-failed') {
         message = 'Network error. Try again.';
       } else if (err.code === 'permission-denied') {
@@ -81,33 +75,28 @@ export default function AuthPage() {
     }
   };
 
-  const legalLinkStyle = { color: '#78ffaa', fontWeight: 700 };
+  const toggleMode = () => {
+    setIsSignup((value) => !value);
+    setError('');
+    setAgreedToTerms(false);
+  };
 
   return (
     <div className="auth-shell">
-      <motion.section
-        className="auth-panel"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-      >
-        <div className="auth-logo-wrap">
-          <img src="/logo-full.png" alt="Here" className="auth-logo-large" />
+      <section className="auth-panel">
+        <div className="auth-brand">
+          <img src="/logo-full.png" alt="Here" className="auth-logo-clean" />
+          <p>Know where to go before you get there.</p>
         </div>
 
-        <h1
-          style={{
-            fontSize: '28px',
-            lineHeight: '1.2',
-            textAlign: 'center',
-            marginTop: '18px',
-            marginBottom: '-10px',
-          }}
-        >
-          See Real-Time Activity At Popular Venues In Your Area!
-        </h1>
-
-        <p>Find The Busiest Spots In Seconds!</p>
+        <div className="auth-heading">
+          <h1>{isSignup ? 'Create your account' : 'Welcome back'}</h1>
+          <p>
+            {isSignup
+              ? 'Join Here to check in, see live activity, and keep your own nightlife stats.'
+              : 'Log in to see what is happening around you.'}
+          </p>
+        </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {isSignup ? (
@@ -116,8 +105,11 @@ export default function AuthPage() {
               <input
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="5–15 chars, include a number"
+                autoCapitalize="none"
+                autoCorrect="off"
+                placeholder="ex. jacob24"
               />
+              <span className="field-help">5–15 characters · letters, numbers, or _ · must include a number</span>
             </label>
           ) : null}
 
@@ -127,7 +119,9 @@ export default function AuthPage() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="your@email.com"
+              autoCapitalize="none"
+              autoComplete="email"
+              placeholder="you@email.com"
             />
           </label>
 
@@ -137,114 +131,55 @@ export default function AuthPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="at least 8 characters"
+              autoComplete={isSignup ? 'new-password' : 'current-password'}
+              placeholder="Enter your password"
             />
+            {isSignup ? <span className="field-help">At least 8 characters</span> : null}
           </label>
 
-          <p className="auth-note">
-            Usernames are public. Everything else stays private.
-          </p>
+          {isSignup ? (
+            <div className="signup-requirements" aria-label="Account requirements">
+              <div className="signup-requirements-title">Account requirements</div>
+              <div>Username: 5–15 characters, letters/numbers/underscores only, with at least 1 number.</div>
+              <div>Password: at least 8 characters.</div>
+            </div>
+          ) : null}
 
           {isSignup ? (
-            <div
-              style={{
-                marginTop: '6px',
-                marginBottom: '6px',
-                padding: '14px 14px 12px',
-                borderRadius: '16px',
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(120,255,170,0.12)',
-              }}
-            >
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '10px',
-                  cursor: 'pointer',
-                  lineHeight: 1.45,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={agreedToTerms}
-                  onChange={(event) => setAgreedToTerms(event.target.checked)}
-                  style={{
-                    marginTop: '4px',
-                    width: '16px',
-                    height: '16px',
-                    cursor: 'pointer',
-                  }}
-                />
-                <span style={{ fontSize: '0.95rem' }}>
-                  I have read and agree to the{' '}
-                  <Link to="/terms" style={legalLinkStyle}>
-                    Terms of Service
-                  </Link>
-                  ,{' '}
-                  <Link to="/privacy" style={legalLinkStyle}>
-                    Privacy Policy
-                  </Link>
-                  , and{' '}
-                  <Link to="/community-rules" style={legalLinkStyle}>
-                    Community Rules
-                  </Link>
-                  .
-                </span>
-              </label>
-
-              <p
-                style={{
-                  margin: '12px 0 0',
-                  color: 'rgba(235,255,240,0.76)',
-                  fontSize: '0.92rem',
-                  lineHeight: 1.5,
-                }}
-              >
-                Here has zero tolerance for objectionable content or abusive users,
-                including harassment, hate speech, threats, bullying, and targeted abuse.
-                Violating content may be removed and accounts may be suspended or banned.
-              </p>
-            </div>
+            <label className="legal-check">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(event) => setAgreedToTerms(event.target.checked)}
+              />
+              <span>
+                I agree to the <Link to="/terms">Terms</Link>, <Link to="/privacy">Privacy Policy</Link>, and{' '}
+                <Link to="/community-rules">Community Rules</Link>.
+              </span>
+            </label>
           ) : null}
 
           {error ? <div className="error-banner">{error}</div> : null}
 
           <button
-            className="primary-button"
+            className="primary-button auth-submit"
             disabled={submitting || (isSignup && !agreedToTerms)}
-            style={{
-              opacity: submitting || (isSignup && !agreedToTerms) ? 0.65 : 1,
-              cursor:
-                submitting || (isSignup && !agreedToTerms)
-                  ? 'not-allowed'
-                  : 'pointer',
-            }}
           >
-            {submitting ? 'Loading...' : isSignup ? 'Create account' : 'Log in'}
+            {submitting ? 'Please wait…' : isSignup ? 'Create account' : 'Log in'}
           </button>
         </form>
 
-        <button
-          className="text-button"
-          onClick={() => {
-            setIsSignup((value) => !value);
-            setError('');
-            setAgreedToTerms(false);
-          }}
-        >
-          {isSignup
-            ? 'Already have an account? Log in'
-            : 'Need an account? Sign up'}
+        <button className="text-button auth-switch" onClick={toggleMode}>
+          {isSignup ? 'Already have an account? Log in' : 'New to Here? Create an account'}
         </button>
 
-        <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '14px', fontSize: '0.88rem' }}>
-          <Link to="/privacy" style={legalLinkStyle}>Privacy</Link>
-          <Link to="/terms" style={legalLinkStyle}>Terms</Link>
-          <Link to="/community-rules" style={legalLinkStyle}>Community Rules</Link>
-          <Link to="/support" style={legalLinkStyle}>Support</Link>
+        <div className="auth-footer-links">
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/community-rules">Community Rules</Link>
+          <Link to="/support">Support</Link>
         </div>
-      </motion.section>
+      </section>
     </div>
   );
 }
