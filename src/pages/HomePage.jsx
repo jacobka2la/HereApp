@@ -75,8 +75,27 @@ export default function HomePage() {
 
   const filteredBars = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return msuBars.filter((bar) => !needle || bar.name.toLowerCase().includes(needle));
-  }, [search]);
+
+    return msuBars
+      .filter((bar) => !needle || bar.name.toLowerCase().includes(needle))
+      .sort((a, b) => {
+        if (a.id === currentBarId && b.id !== currentBarId) return -1;
+        if (b.id === currentBarId && a.id !== currentBarId) return 1;
+
+        const aStats = statsByBar[a.id] || {};
+        const bStats = statsByBar[b.id] || {};
+        const aCount = aStats.count || 0;
+        const bCount = bStats.count || 0;
+
+        if (bCount !== aCount) return bCount - aCount;
+
+        const aScore = aStats.hottestScore || 0;
+        const bScore = bStats.hottestScore || 0;
+        if (bScore !== aScore) return bScore - aScore;
+
+        return a.name.localeCompare(b.name);
+      });
+  }, [search, currentBarId, statsByBar]);
 
   return (
     <Layout>
@@ -96,7 +115,7 @@ export default function HomePage() {
           <div className="section-headline section-headline-centered">
             <div>
               <h2>All Bars</h2>
-              <p>Find A Spot And Open Live Details.</p>
+              <p>Most Active Right Now.</p>
             </div>
           </div>
 
