@@ -12,6 +12,7 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { avatars } from '../lib/avatars';
@@ -130,13 +131,32 @@ export function AuthProvider({ children }) {
     if (!avatars.some((avatar) => avatar.id === avatarId)) throw new Error('INVALID_AVATAR');
 
     const userRef = doc(db, 'users', currentUser.uid);
+    const publicRef = doc(db, 'publicProfiles', currentUser.uid);
     const userSnap = await getDoc(userRef);
-    const currentData = userSnap.data() || {};
-    if (currentData.avatarId) throw new Error('AVATAR_ALREADY_SET');
 
-    await setDoc(userRef, { avatarId, avatarSelectedAt: serverTimestamp() }, { merge: true });
-    await setDoc(doc(db, 'publicProfiles', currentUser.uid), { avatarId, updatedAt: serverTimestamp() }, { merge: true });
-    setProfile((current) => ({ ...(current || currentData), avatarId }));
+    if (!userSnap.exists()) throw new Error('PROFILE_NOT_FOUND');
+
+    const currentData = userSnap.data();
+    if (currentData.avatarId) {
+      setProfile(currentData);
+      throw new Error('AVATAR_ALREADY_SET');
+    }
+
+    const batch = writeBatch(db);
+    batch.set(userRef, {
+      avatarId,
+      avatarSelectedAt: serverTimestamp(),
+    }, { merge: true });
+    batch.set(publicRef, {
+      avatarId,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    await batch.commit();
+
+    setProfile((current) => ({
+      ...(current || currentData),
+      avatarId,
+    }));
   };
 
   const logIn = async (email, password) => {
