@@ -19,14 +19,51 @@ html,body { scroll-behavior:auto!important; overscroll-behavior-y:none; }
 .section-headline>div { width:100%; }
 .section-headline h2 { font-size:1.3rem; }
 .search-wrap { max-width:560px; margin:0; }
+.search-field { position:relative; }
+.search-field-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#7f8c84; pointer-events:none; }
+.search-field input { padding-left:42px!important; }
+
 .bottom-nav { left:16px; right:16px; bottom:max(8px,env(safe-area-inset-bottom)); width:min(calc(100% - 32px),500px); gap:4px; padding:5px; border-radius:16px; border-color:rgba(91,255,138,.12); background:rgba(5,10,7,.97); box-shadow:0 8px 24px rgba(0,0,0,.3); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
-.bottom-nav a { min-height:48px; display:grid; place-items:center; border-radius:12px!important; padding:10px 8px!important; font-size:.96rem!important; transition:none!important; }
+.bottom-nav-item { min-height:54px; flex:1; display:flex!important; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:12px!important; padding:7px 8px!important; color:rgba(239,255,244,.68); font-size:.76rem!important; font-weight:800; }
+.bottom-nav-item svg { opacity:.88; }
+.bottom-nav-item-active { color:#07130b!important; background:#5BFF8A!important; }
+.bottom-nav-item-active svg { opacity:1; }
+
 .home-stack>div { border-radius:17px!important; box-shadow:none!important; border-color:var(--stroke)!important; background:var(--surface)!important; }
 .home-stack>div:first-child { text-align:left; padding-top:18px!important; padding-bottom:18px!important; }
 .home-stack>div:first-child h1,.home-stack>div:first-child p { margin-left:0!important; margin-right:0!important; }
 .home-stack h1,.home-stack h2,.home-stack h3,.label,.signup-requirements-title { text-transform:capitalize; }
 .bar-detail-page { display:grid; gap:12px; }
 .bar-back-button { width:max-content; display:inline-flex; align-items:center; min-height:40px; padding:8px 12px; border:1px solid var(--stroke); border-radius:12px; background:rgba(255,255,255,.025); color:#dce8df; font-size:.9rem; font-weight:800; }
+
+/* Social details */
+.user-avatar { display:inline-grid; place-items:center; flex:0 0 auto; border-radius:50%; background:linear-gradient(145deg,#5bff8a,#2bc45e); color:#07130b; font-weight:950; box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); }
+.user-avatar-sm { width:34px; height:34px; font-size:.82rem; }
+.user-avatar-md { width:42px; height:42px; font-size:1rem; }
+.comment-card { padding:15px; }
+.comment-topline { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.comment-author { display:flex; align-items:center; gap:10px; min-width:0; }
+.comment-username { color:#f4fff7; font-size:.96rem; font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.comment-time { color:rgba(235,255,240,.56); font-size:.79rem; font-weight:650; white-space:nowrap; }
+.comment-text { margin:0 0 12px; color:rgba(245,255,248,.92); line-height:1.55; word-break:break-word; }
+.reaction-row { display:flex!important; flex-wrap:wrap; gap:8px; overflow:visible!important; padding-top:0!important; }
+.reaction-chip { min-width:58px; }
+
+/* Better empty states */
+.empty-state { text-align:center; padding:20px 16px!important; color:#b7c2bb!important; }
+.empty-state::before { content:'•'; display:block; margin:0 auto 8px; color:var(--green); font-size:1.4rem; line-height:1; }
+.hero-card-empty { text-align:left; }
+.hero-card-empty h1 { margin-bottom:6px; }
+
+/* Branded loading */
+.app-loading-shell { min-height:100dvh; padding:max(72px,calc(env(safe-area-inset-top) + 26px)) 18px 32px; background:#050806; display:grid; align-content:start; gap:14px; }
+.app-loading-logo { display:block; width:min(220px,58vw); margin:0 auto 14px; }
+.loading-skeleton { border:1px solid rgba(255,255,255,.055); border-radius:16px; background:linear-gradient(90deg,#0b110d 0%,#101913 50%,#0b110d 100%); background-size:220% 100%; animation:here-skeleton 1.15s ease-in-out infinite!important; }
+.loading-skeleton-hero { height:150px; }
+.loading-skeleton-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.loading-skeleton-row .loading-skeleton { height:78px; }
+.loading-skeleton-card { height:185px; }
+@keyframes here-skeleton { 0% { background-position:100% 0; } 100% { background-position:-100% 0; } }
 
 /* Authentication */
 .auth-shell { min-height:100dvh; display:block; padding:max(64px,calc(env(safe-area-inset-top) + 22px)) 16px calc(env(safe-area-inset-bottom) + 24px); }
