@@ -86,12 +86,17 @@ function getCheckInErrorMessage(error, targetBarId) {
     return `You're still checked into ${currentBarName}. Leave that bar before checking in somewhere else.`;
   }
 
-  match = raw.match(/^CHECKIN_COOLDOWN_(\d+)$/);
+  match = raw.match(/^SAME_BAR_COOLDOWN_(\d+)$/);
   if (match) {
-    return `You just left a bar. You can check in again in ${formatDuration(Number(match[1]))}.`;
+    return `You just left ${getBarMeta(targetBarId)?.name || 'this bar'}. You can check back into this same bar in ${formatDuration(Number(match[1]))}.`;
   }
 
   // Friendly fallback for older builds/data while devices update.
+  match = raw.match(/^CHECKIN_COOLDOWN_(\d+)$/);
+  if (match) {
+    return `You just left this bar. You can check back into it in ${formatDuration(Number(match[1]))}.`;
+  }
+
   match = raw.match(/^CHECKIN_LOCK_SAME_BAR_(?:[^_]+_)?(\d+)$/);
   if (match) {
     return `You're already checked into ${getBarMeta(targetBarId)?.name || 'this bar'}.`;
@@ -235,11 +240,10 @@ export default function BarDetailPage() {
 
     try {
       await leaveBar(firebaseUser.uid);
-      // Make the UI react immediately instead of waiting for the Firestore snapshot round trip.
       setCheckins((current) => current.map((item) => (
         item.uid === firebaseUser.uid && item.active ? { ...item, active: false } : item
       )));
-      setFeedback(`You left ${bar.name}. You can check in again in 20:00.`);
+      setFeedback(`You left ${bar.name}. You can check into a different bar right away, or come back here in 20:00.`);
     } catch (err) {
       setFeedback(getLeaveErrorMessage(err));
     } finally {
@@ -426,7 +430,7 @@ export default function BarDetailPage() {
                   )}
                 </div>
 
-                <p className="detail-checkin-note">Check in when you arrive so the live crowd count stays accurate. After leaving, there’s a 20-minute wait before your next check-in.</p>
+                <p className="detail-checkin-note">Check in when you arrive so the live crowd count stays accurate. If you leave, you can check into a different bar right away, but you have to wait 20 minutes before checking back into the same bar.</p>
                 {feedback ? <div className="info-banner detail-feedback">{feedback}</div> : null}
               </div>
             </div>
