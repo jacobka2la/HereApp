@@ -2,14 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    function validAvatarId(value) { return value in ['avatar-1', 'avatar-2', 'avatar-3', 'avatar-4']; }
+    function avatarUnchangedOrFirstSet() {
+      return (
+        (!resource.data.keys().hasAny(['avatarId']) || resource.data.avatarId == null)
+          ? validAvatarId(request.resource.data.avatarId)
+          : request.resource.data.avatarId == resource.data.avatarId
+      );
     }
-
-    function isSelf(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
-
     function profileUsernameMatches() {
       return signedIn()
         && request.resource.data.username is string
@@ -18,257 +20,120 @@ service cloud.firestore {
           request.resource.data.username == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayUsername
         );
     }
-
-    function isFriendshipMember() {
-      return signedIn() && request.auth.uid in resource.data.memberUids;
-    }
-
-    function isFriendshipMemberOnCreate() {
-      return signedIn()
-        && request.auth.uid in request.resource.data.memberUids
-        && request.resource.data.memberUids.size() == 2;
-    }
-
-    function isFriendRequestParticipant() {
-      return signedIn()
-        && (
-          resource.data.fromUid == request.auth.uid ||
-          resource.data.toUid == request.auth.uid
-        );
-    }
-
-    function isInviteParticipant() {
-      return signedIn()
-        && (
-          resource.data.fromUid == request.auth.uid ||
-          resource.data.toUid == request.auth.uid
-        );
-    }
-
-    function isNotificationRecipient() {
-      return signedIn() && resource.data.toUid == request.auth.uid;
-    }
-
-    function isNotificationSenderOnCreate() {
-      return signedIn() && request.resource.data.fromUid == request.auth.uid;
-    }
-
-    function isOwnCheckinDoc() {
-      return signedIn() && resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnCheckinCreate() {
-      return signedIn() && request.resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnContent() {
-      return signedIn() && resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnContentCreate() {
-      return signedIn() && request.resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnReaction() {
-      return signedIn() && resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnReactionCreate() {
-      return signedIn() && request.resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnReportCreate() {
-      return signedIn() && request.resource.data.reporterUid == request.auth.uid;
-    }
-
-    function isOwnHiddenCommentDoc() {
-      return signedIn() && resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnHiddenCommentCreate() {
-      return signedIn() && request.resource.data.uid == request.auth.uid;
-    }
+    function isFriendshipMember() { return signedIn() && request.auth.uid in resource.data.memberUids; }
+    function isFriendshipMemberOnCreate() { return signedIn() && request.auth.uid in request.resource.data.memberUids && request.resource.data.memberUids.size() == 2; }
+    function isFriendRequestParticipant() { return signedIn() && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid); }
+    function isInviteParticipant() { return signedIn() && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid); }
+    function isNotificationRecipient() { return signedIn() && resource.data.toUid == request.auth.uid; }
+    function isNotificationSenderOnCreate() { return signedIn() && request.resource.data.fromUid == request.auth.uid; }
+    function isOwnCheckinDoc() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function isOwnCheckinCreate() { return signedIn() && request.resource.data.uid == request.auth.uid; }
+    function isOwnContent() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function isOwnContentCreate() { return signedIn() && request.resource.data.uid == request.auth.uid; }
+    function isOwnReaction() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function isOwnReactionCreate() { return signedIn() && request.resource.data.uid == request.auth.uid; }
+    function isOwnReportCreate() { return signedIn() && request.resource.data.reporterUid == request.auth.uid; }
+    function isOwnHiddenCommentDoc() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function isOwnHiddenCommentCreate() { return signedIn() && request.resource.data.uid == request.auth.uid; }
 
     match /users/{userId} {
       allow read: if isSelf(userId);
-
-      allow create: if isSelf(userId)
-        && request.resource.data.uid == request.auth.uid;
-
+      allow create: if isSelf(userId) && request.resource.data.uid == request.auth.uid;
       allow update: if isSelf(userId)
         && resource.data.uid == request.auth.uid
-        && request.resource.data.uid == request.auth.uid;
-
+        && request.resource.data.uid == request.auth.uid
+        && avatarUnchangedOrFirstSet();
       allow delete: if isSelf(userId);
     }
 
     match /publicProfiles/{userId} {
       allow read: if signedIn();
-      allow create, update: if isSelf(userId)
+      allow create: if isSelf(userId)
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasOnly([
-          'uid',
-          'username',
-          'displayUsername',
-          'displayUsernameLower',
-          'updatedAt'
-        ]);
+        && request.resource.data.keys().hasOnly(['uid','username','displayUsername','displayUsernameLower','avatarId','updatedAt']);
+      allow update: if isSelf(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid','username','displayUsername','displayUsernameLower','avatarId','updatedAt'])
+        && avatarUnchangedOrFirstSet();
       allow delete: if isSelf(userId);
     }
 
-    match /bars/{barId} {
-      allow read: if signedIn();
-      allow write: if false;
-    }
+    match /bars/{barId} { allow read: if signedIn(); allow write: if false; }
 
     match /checkins/{docId} {
       allow read: if signedIn();
-
-      allow create: if isOwnCheckinCreate()
-        && profileUsernameMatches()
-        && request.resource.data.dayKey is string
-        && request.resource.data.barId is string
-        && request.resource.data.active is bool;
-
-      allow update: if isOwnCheckinDoc()
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches();
-
+      allow create: if isOwnCheckinCreate() && profileUsernameMatches() && request.resource.data.dayKey is string && request.resource.data.barId is string && request.resource.data.active is bool;
+      allow update: if isOwnCheckinDoc() && request.resource.data.uid == request.auth.uid && profileUsernameMatches();
       allow delete: if false;
     }
 
     match /activeCheckins/{uid} {
       allow read: if isSelf(uid);
-      allow create, update: if isSelf(uid)
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches();
+      allow create, update: if isSelf(uid) && request.resource.data.uid == request.auth.uid && profileUsernameMatches();
       allow delete: if isSelf(uid);
     }
 
     match /userBarStats/{docId} {
-      // Queries use where('uid', '==', request.auth.uid), so authorize by document data.
-      allow read: if signedIn()
-        && resource.data.uid == request.auth.uid;
-
-      allow create: if signedIn()
-        && request.resource.data.uid == request.auth.uid
-        && docId.matches('^' + request.auth.uid + '_.*$')
-        && profileUsernameMatches();
-
-      allow update: if signedIn()
-        && resource.data.uid == request.auth.uid
-        && request.resource.data.uid == request.auth.uid
-        && docId.matches('^' + request.auth.uid + '_.*$')
-        && profileUsernameMatches();
-
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && docId.matches('^' + request.auth.uid + '_.*$') && profileUsernameMatches();
+      allow update: if signedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid && docId.matches('^' + request.auth.uid + '_.*$') && profileUsernameMatches();
       allow delete: if false;
     }
 
     match /userStats/{uid} {
       allow read: if isSelf(uid);
-      allow create, update: if isSelf(uid)
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches();
+      allow create, update: if isSelf(uid) && request.resource.data.uid == request.auth.uid && profileUsernameMatches();
       allow delete: if false;
     }
 
     match /vibes/{docId} {
       allow read: if signedIn();
-
-      allow create: if isOwnContentCreate()
-        && profileUsernameMatches()
-        && request.resource.data.vibe is string;
-
-      allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches();
-
+      allow create: if isOwnContentCreate() && profileUsernameMatches() && request.resource.data.vibe is string;
+      allow update: if isOwnContent() && request.resource.data.uid == request.auth.uid && profileUsernameMatches();
       allow delete: if false;
     }
 
     match /coverReports/{docId} {
       allow read: if signedIn();
-
-      allow create: if isOwnContentCreate()
-        && profileUsernameMatches()
-        && request.resource.data.range is string;
-
-      allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches();
-
+      allow create: if isOwnContentCreate() && profileUsernameMatches() && request.resource.data.range is string;
+      allow update: if isOwnContent() && request.resource.data.uid == request.auth.uid && profileUsernameMatches();
       allow delete: if false;
     }
 
     match /lineReports/{docId} {
       allow read: if signedIn();
-
-      allow create: if isOwnContentCreate()
-        && profileUsernameMatches()
-        && request.resource.data.lineLength is string;
-
-      allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches();
-
+      allow create: if isOwnContentCreate() && profileUsernameMatches() && request.resource.data.lineLength is string;
+      allow update: if isOwnContent() && request.resource.data.uid == request.auth.uid && profileUsernameMatches();
       allow delete: if false;
     }
 
     match /comments/{docId} {
       allow read: if signedIn();
-
-      allow create: if isOwnContentCreate()
-        && profileUsernameMatches()
-        && request.resource.data.text is string
-        && request.resource.data.text.size() <= 180
-        && request.resource.data.hidden == false;
-
-      allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches();
-
+      allow create: if isOwnContentCreate() && profileUsernameMatches() && request.resource.data.text is string && request.resource.data.text.size() <= 180 && request.resource.data.hidden == false;
+      allow update: if isOwnContent() && request.resource.data.uid == request.auth.uid && profileUsernameMatches();
       allow delete: if isOwnContent();
     }
 
     match /commentReactions/{docId} {
       allow read: if signedIn();
-
-      allow create: if isOwnReactionCreate()
-        && profileUsernameMatches()
-        && request.resource.data.emoji in ['🔥', '👀', '🍻'];
-
-      allow update: if isOwnReaction()
-        && request.resource.data.uid == request.auth.uid
-        && profileUsernameMatches()
-        && request.resource.data.emoji in ['🔥', '👀', '🍻'];
-
+      allow create: if isOwnReactionCreate() && profileUsernameMatches() && request.resource.data.emoji in ['🔥','👀','🍻'];
+      allow update: if isOwnReaction() && request.resource.data.uid == request.auth.uid && profileUsernameMatches() && request.resource.data.emoji in ['🔥','👀','🍻'];
       allow delete: if isOwnReaction();
     }
 
-    match /reports/{docId} {
-      allow create: if isOwnReportCreate();
-      allow read, update, delete: if false;
-    }
+    match /reports/{docId} { allow create: if isOwnReportCreate(); allow read, update, delete: if false; }
 
     match /hiddenComments/{docId} {
       allow read: if isOwnHiddenCommentDoc();
       allow create: if isOwnHiddenCommentCreate();
-      allow update: if isOwnHiddenCommentDoc()
-        && request.resource.data.uid == request.auth.uid;
+      allow update: if isOwnHiddenCommentDoc() && request.resource.data.uid == request.auth.uid;
       allow delete: if isOwnHiddenCommentDoc();
     }
 
     match /friendRequests/{docId} {
       allow read: if isFriendRequestParticipant();
-
-      allow create: if signedIn()
-        && request.resource.data.fromUid == request.auth.uid
-        && request.resource.data.status == 'pending';
-
-      allow update: if isFriendRequestParticipant()
-        && request.resource.data.fromUid == resource.data.fromUid
-        && request.resource.data.toUid == resource.data.toUid;
-
+      allow create: if signedIn() && request.resource.data.fromUid == request.auth.uid && request.resource.data.status == 'pending';
+      allow update: if isFriendRequestParticipant() && request.resource.data.fromUid == resource.data.fromUid && request.resource.data.toUid == resource.data.toUid;
       allow delete: if false;
     }
 
@@ -280,44 +145,22 @@ service cloud.firestore {
 
     match /invites/{docId} {
       allow read: if isInviteParticipant();
-
-      allow create: if signedIn()
-        && request.resource.data.fromUid == request.auth.uid
-        && request.resource.data.status == 'pending';
-
-      allow update: if isInviteParticipant()
-        && request.resource.data.fromUid == resource.data.fromUid
-        && request.resource.data.toUid == resource.data.toUid
-        && request.resource.data.barId == resource.data.barId;
-
+      allow create: if signedIn() && request.resource.data.fromUid == request.auth.uid && request.resource.data.status == 'pending';
+      allow update: if isInviteParticipant() && request.resource.data.fromUid == resource.data.fromUid && request.resource.data.toUid == resource.data.toUid && request.resource.data.barId == resource.data.barId;
       allow delete: if false;
     }
 
     match /inviteCooldowns/{docId} {
       allow read: if signedIn();
-
-      allow create: if signedIn()
-        && request.resource.data.fromUid == request.auth.uid;
-
-      allow update: if signedIn()
-        && resource.data.fromUid == request.auth.uid
-        && request.resource.data.fromUid == resource.data.fromUid
-        && request.resource.data.toUid == resource.data.toUid
-        && request.resource.data.barId == resource.data.barId;
-
+      allow create: if signedIn() && request.resource.data.fromUid == request.auth.uid;
+      allow update: if signedIn() && resource.data.fromUid == request.auth.uid && request.resource.data.fromUid == resource.data.fromUid && request.resource.data.toUid == resource.data.toUid && request.resource.data.barId == resource.data.barId;
       allow delete: if false;
     }
 
     match /notifications/{docId} {
       allow read: if isNotificationRecipient();
-
-      allow create: if isNotificationSenderOnCreate()
-        && request.resource.data.read == false;
-
-      allow update: if isNotificationRecipient()
-        && request.resource.data.toUid == resource.data.toUid
-        && request.resource.data.fromUid == resource.data.fromUid;
-
+      allow create: if isNotificationSenderOnCreate() && request.resource.data.read == false;
+      allow update: if isNotificationRecipient() && request.resource.data.toUid == resource.data.toUid && request.resource.data.fromUid == resource.data.fromUid;
       allow delete: if false;
     }
   }
