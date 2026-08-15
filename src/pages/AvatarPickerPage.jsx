@@ -1,6 +1,7 @@
 import { Navigate, useState } from 'react';
 import { avatars } from '../lib/avatars';
 import { useAuth } from '../context/AuthContext';
+import '../avatar-picker.css';
 
 function AvatarArt({ avatar }) {
   const isLongHair = avatar.id === 'avatar-3' || avatar.id === 'avatar-4';
