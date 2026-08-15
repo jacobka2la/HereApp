@@ -23,7 +23,12 @@ export default function UserAvatar({ username = '', avatarId = '', size = 'md' }
   if (avatar?.image) {
     return (
       <span className={`user-avatar user-avatar-${size} user-avatar-image-wrap`} style={commonStyle} aria-hidden="true">
-        <img src={avatar.image} alt="" className="user-avatar-image" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <img
+          src={avatar.image}
+          alt=""
+          className="user-avatar-image"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
+        />
       </span>
     );
   }
