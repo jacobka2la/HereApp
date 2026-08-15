@@ -23,792 +23,244 @@ const CHECKIN_LOCK_MS = 20 * 60 * 1000;
 const SAME_BAR_VISIT_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const INVITE_COOLDOWN_MS = 5 * 60 * 1000;
 
-async function createNotification({
-  toUid,
-  type,
-  title,
-  body,
-  fromUid = '',
-  fromUsername = '',
-  barId = '',
-  barName = '',
-  meta = {},
-}) {
+async function createNotification({ toUid, type, title, body, fromUid = '', fromUsername = '', barId = '', barName = '', meta = {} }) {
   if (!toUid) return;
-
-  await addDoc(collection(db, 'notifications'), {
-    toUid,
-    type,
-    title,
-    body,
-    fromUid,
-    fromUsername,
-    barId,
-    barName,
-    meta,
-    read: false,
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
+  await addDoc(collection(db, 'notifications'), { toUid, type, title, body, fromUid, fromUsername, barId, barName, meta, read: false, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
 
 async function notifyFriendsOfCheckIn({ uid, username, barId, barName }) {
-  const friendshipsQuery = query(
-    collection(db, 'friendships'),
-    where('memberUids', 'array-contains', uid)
-  );
-
+  const friendshipsQuery = query(collection(db, 'friendships'), where('memberUids', 'array-contains', uid));
   const snap = await getDocs(friendshipsQuery);
-
-  const friendUids = snap.docs
-    .map((item) => item.data())
-    .map((friendship) =>
-      friendship.userAUid === uid ? friendship.userBUid : friendship.userAUid
-    )
-    .filter(Boolean);
-
-  await Promise.all(
-    friendUids.map((friendUid) =>
-      createNotification({
-        toUid: friendUid,
-        type: 'friend_checkin',
-        title: `@${username} is out tonight`,
-        body: `${username} checked into ${barName}.`,
-        fromUid: uid,
-        fromUsername: username,
-        barId,
-        barName,
-      })
-    )
-  );
+  const friendUids = snap.docs.map((item) => item.data()).map((friendship) => friendship.userAUid === uid ? friendship.userBUid : friendship.userAUid).filter(Boolean);
+  await Promise.all(friendUids.map((friendUid) => createNotification({ toUid: friendUid, type: 'friend_checkin', title: `@${username} is out tonight`, body: `${username} checked into ${barName}.`, fromUid: uid, fromUsername: username, barId, barName })));
 }
 
 export async function seedBarsIfNeeded() {
-  await Promise.all(
-    msuBars.map(async (bar) => {
-      const ref = doc(db, 'bars', bar.id);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          ...bar,
-          createdAt: serverTimestamp(),
-        });
-      }
-    })
-  );
+  await Promise.all(msuBars.map(async (bar) => {
+    const ref = doc(db, 'bars', bar.id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) await setDoc(ref, { ...bar, createdAt: serverTimestamp() });
+  }));
 }
 
 export function subscribeToTodayCollection(collectionName, callback) {
   const dayKey = getCurrentDayKey();
   const q = query(collection(db, collectionName), where('dayKey', '==', dayKey));
-
   return onSnapshot(q, (snap) => {
-    callback(
-      snap.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-        createdAtMillis:
-          item.data().createdAt?.toMillis?.() ??
-          item.data().createdAtMillis ??
-          Date.now(),
-        checkedInAtMillis:
-          item.data().checkedInAt?.toMillis?.() ??
-          item.data().checkedInAtMillis ??
-          item.data().createdAt?.toMillis?.() ??
-          Date.now(),
-      }))
-    );
+    callback(snap.docs.map((item) => ({
+      id: item.id,
+      ...item.data(),
+      createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now(),
+      checkedInAtMillis: item.data().checkedInAt?.toMillis?.() ?? item.data().checkedInAtMillis ?? item.data().createdAt?.toMillis?.() ?? Date.now(),
+    })));
   });
 }
 
 export function subscribeToComments(barId, callback) {
-  const q = query(
-    collection(db, 'comments'),
-    where('dayKey', '==', getCurrentDayKey()),
-    where('barId', '==', barId),
-    orderBy('createdAt', 'desc')
-  );
-
-  return onSnapshot(q, (snap) => {
-    callback(
-      snap.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-        createdAtMillis: item.data().createdAt?.toMillis?.() ?? Date.now(),
-      }))
-    );
-  });
+  const q = query(collection(db, 'comments'), where('dayKey', '==', getCurrentDayKey()), where('barId', '==', barId), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? Date.now() }))));
 }
 
 export function subscribeToInvitesForUser(uid, callback) {
-  if (!uid) {
-    callback([]);
-    return () => {};
-  }
-
-  const q = query(
-    collection(db, 'invites'),
-    where('toUid', '==', uid),
-    where('status', '==', 'pending')
-  );
-
+  if (!uid) { callback([]); return () => {}; }
+  const q = query(collection(db, 'invites'), where('toUid', '==', uid), where('status', '==', 'pending'));
   return onSnapshot(q, (snap) => {
-    const items = snap.docs
-      .map((item) => ({
-        id: item.id,
-        ...item.data(),
-        createdAtMillis:
-          item.data().createdAt?.toMillis?.() ??
-          item.data().createdAtMillis ??
-          Date.now(),
-      }))
-      .sort((a, b) => b.createdAtMillis - a.createdAtMillis);
-
+    const items = snap.docs.map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now() })).sort((a, b) => b.createdAtMillis - a.createdAtMillis);
     callback(items);
   });
 }
 
 export function subscribeToNotificationsForUser(uid, callback) {
-  if (!uid) {
-    callback([]);
-    return () => {};
-  }
-
+  if (!uid) { callback([]); return () => {}; }
   const q = query(collection(db, 'notifications'), where('toUid', '==', uid));
-
   return onSnapshot(q, (snap) => {
-    const items = snap.docs
-      .map((item) => ({
-        id: item.id,
-        ...item.data(),
-        createdAtMillis:
-          item.data().createdAt?.toMillis?.() ??
-          item.data().createdAtMillis ??
-          Date.now(),
-      }))
-      .sort((a, b) => b.createdAtMillis - a.createdAtMillis)
-      .slice(0, 15);
-
+    const items = snap.docs.map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now() })).sort((a, b) => b.createdAtMillis - a.createdAtMillis).slice(0, 15);
     callback(items);
   });
 }
 
 export async function markNotificationRead(notificationId) {
-  await setDoc(
-    doc(db, 'notifications', notificationId),
-    {
-      read: true,
-      readAt: serverTimestamp(),
-      readAtMillis: Date.now(),
-    },
-    { merge: true }
-  );
+  await setDoc(doc(db, 'notifications', notificationId), { read: true, readAt: serverTimestamp(), readAtMillis: Date.now() }, { merge: true });
 }
 
 export function subscribeToFriendRequestsForUser(uid, callback) {
-  if (!uid) {
-    callback([]);
-    return () => {};
-  }
-
-  const q = query(
-    collection(db, 'friendRequests'),
-    where('toUid', '==', uid),
-    where('status', '==', 'pending')
-  );
-
+  if (!uid) { callback([]); return () => {}; }
+  const q = query(collection(db, 'friendRequests'), where('toUid', '==', uid), where('status', '==', 'pending'));
   return onSnapshot(q, (snap) => {
-    const items = snap.docs
-      .map((item) => ({
-        id: item.id,
-        ...item.data(),
-        createdAtMillis:
-          item.data().createdAt?.toMillis?.() ??
-          item.data().createdAtMillis ??
-          Date.now(),
-      }))
-      .sort((a, b) => b.createdAtMillis - a.createdAtMillis);
-
+    const items = snap.docs.map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now() })).sort((a, b) => b.createdAtMillis - a.createdAtMillis);
     callback(items);
   });
 }
 
 export function subscribeToFriendsForUser(uid, callback) {
-  if (!uid) {
-    callback([]);
-    return () => {};
-  }
-
-  const q = query(
-    collection(db, 'friendships'),
-    where('memberUids', 'array-contains', uid)
-  );
-
+  if (!uid) { callback([]); return () => {}; }
+  const q = query(collection(db, 'friendships'), where('memberUids', 'array-contains', uid));
   return onSnapshot(q, (snap) => {
-    const items = snap.docs
-      .map((item) => ({
-        id: item.id,
-        ...item.data(),
-        createdAtMillis:
-          item.data().createdAt?.toMillis?.() ??
-          item.data().createdAtMillis ??
-          Date.now(),
-      }))
-      .sort((a, b) => b.createdAtMillis - a.createdAtMillis);
-
+    const items = snap.docs.map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now() })).sort((a, b) => b.createdAtMillis - a.createdAtMillis);
     callback(items);
   });
 }
 
 export function subscribeToUserBarStats(uid, callback) {
-  if (!uid) {
-    callback([]);
-    return () => {};
-  }
-
+  if (!uid) { callback([]); return () => {}; }
   const q = query(collection(db, 'userBarStats'), where('uid', '==', uid));
-
   return onSnapshot(q, (snap) => {
-    const items = snap.docs
-      .map((item) => ({
-        id: item.id,
-        ...item.data(),
-        lastVisitAtMillis:
-          item.data().lastVisitAt?.toMillis?.() ??
-          item.data().lastVisitAtMillis ??
-          0,
-      }))
-      .sort((a, b) => b.lastVisitAtMillis - a.lastVisitAtMillis);
-
+    const items = snap.docs.map((item) => ({ id: item.id, ...item.data(), lastVisitAtMillis: item.data().lastVisitAt?.toMillis?.() ?? item.data().lastVisitAtMillis ?? 0 })).sort((a, b) => b.lastVisitAtMillis - a.lastVisitAtMillis);
     callback(items);
   });
 }
 
 export function subscribeToHiddenCommentsForUser(uid, callback) {
-  if (!uid) {
-    callback([]);
-    return () => {};
-  }
-
+  if (!uid) { callback([]); return () => {}; }
   const q = query(collection(db, 'hiddenComments'), where('uid', '==', uid));
-
-  return onSnapshot(q, (snap) => {
-    const items = snap.docs.map((item) => ({
-      id: item.id,
-      ...item.data(),
-    }));
-
-    callback(items);
-  });
+  return onSnapshot(q, (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))));
 }
 
 export async function findUserByUsername(username) {
   const clean = username.trim().toLowerCase();
-
   if (!clean) return null;
 
-  const usernameQuery = query(collection(db, 'users'), where('username', '==', clean));
+  const usernameQuery = query(collection(db, 'publicProfiles'), where('username', '==', clean));
   const usernameSnap = await getDocs(usernameQuery);
-
   if (!usernameSnap.empty) {
     const first = usernameSnap.docs[0];
-    return {
-      id: first.id,
-      ...first.data(),
-    };
+    return { id: first.id, ...first.data() };
   }
 
-  const displayQuery = query(
-    collection(db, 'users'),
-    where('displayUsernameLower', '==', clean)
-  );
+  const displayQuery = query(collection(db, 'publicProfiles'), where('displayUsernameLower', '==', clean));
   const displaySnap = await getDocs(displayQuery);
-
   if (displaySnap.empty) return null;
-
   const first = displaySnap.docs[0];
-  return {
-    id: first.id,
-    ...first.data(),
-  };
+  return { id: first.id, ...first.data() };
 }
 
-export async function sendFriendRequest({
-  fromUid,
-  fromUsername,
-  toUid,
-  toUsername,
-}) {
+export async function sendFriendRequest({ fromUid, fromUsername, toUid, toUsername }) {
   const directRequestId = `${fromUid}_${toUid}`;
   const reverseRequestId = `${toUid}_${fromUid}`;
   const friendshipId = [fromUid, toUid].sort().join('_');
-
   const friendshipSnap = await getDoc(doc(db, 'friendships', friendshipId));
-  if (friendshipSnap.exists()) {
-    throw new Error('ALREADY_FRIENDS');
-  }
-
+  if (friendshipSnap.exists()) throw new Error('ALREADY_FRIENDS');
   const reverseSnap = await getDoc(doc(db, 'friendRequests', reverseRequestId));
   if (reverseSnap.exists() && reverseSnap.data()?.status === 'pending') {
-    await respondToFriendRequest({
-      requestId: reverseRequestId,
-      fromUid: toUid,
-      fromUsername: toUsername,
-      toUid: fromUid,
-      toUsername: fromUsername,
-      status: 'accepted',
-    });
+    await respondToFriendRequest({ requestId: reverseRequestId, fromUid: toUid, fromUsername: toUsername, toUid: fromUid, toUsername: fromUsername, status: 'accepted' });
     return;
   }
-
-  await setDoc(doc(db, 'friendRequests', directRequestId), {
-    fromUid,
-    fromUsername,
-    toUid,
-    toUsername: toUsername.trim().toLowerCase(),
-    status: 'pending',
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
-
-  await createNotification({
-    toUid,
-    type: 'friend_request',
-    title: 'New friend request',
-    body: `@${fromUsername} sent you a friend request.`,
-    fromUid,
-    fromUsername,
-  });
+  await setDoc(doc(db, 'friendRequests', directRequestId), { fromUid, fromUsername, toUid, toUsername: toUsername.trim().toLowerCase(), status: 'pending', createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  await createNotification({ toUid, type: 'friend_request', title: 'New friend request', body: `@${fromUsername} sent you a friend request.`, fromUid, fromUsername });
 }
 
-export async function respondToFriendRequest({
-  requestId,
-  fromUid,
-  fromUsername,
-  toUid,
-  toUsername,
-  status,
-}) {
-  await setDoc(
-    doc(db, 'friendRequests', requestId),
-    {
-      status,
-      respondedAt: serverTimestamp(),
-      respondedAtMillis: Date.now(),
-    },
-    { merge: true }
-  );
-
+export async function respondToFriendRequest({ requestId, fromUid, fromUsername, toUid, toUsername, status }) {
+  await setDoc(doc(db, 'friendRequests', requestId), { status, respondedAt: serverTimestamp(), respondedAtMillis: Date.now() }, { merge: true });
   if (status !== 'accepted') return;
-
   const friendshipId = [fromUid, toUid].sort().join('_');
-
-  await setDoc(doc(db, 'friendships', friendshipId), {
-    memberUids: [fromUid, toUid],
-    userAUid: fromUid,
-    userAUsername: fromUsername,
-    userBUid: toUid,
-    userBUsername: toUsername,
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
-
-  await createNotification({
-    toUid: fromUid,
-    type: 'friend_accept',
-    title: 'Friend request accepted',
-    body: `@${toUsername} accepted your friend request.`,
-    fromUid: toUid,
-    fromUsername: toUsername,
-  });
+  await setDoc(doc(db, 'friendships', friendshipId), { memberUids: [fromUid, toUid], userAUid: fromUid, userAUsername: fromUsername, userBUid: toUid, userBUsername: toUsername, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  await createNotification({ toUid: fromUid, type: 'friend_accept', title: 'Friend request accepted', body: `@${toUsername} accepted your friend request.`, fromUid: toUid, fromUsername: toUsername });
 }
 
 export async function upsertCheckIn({ uid, username, barId }) {
   const now = Date.now();
   const dayKey = getCurrentDayKey();
-
   const activeRef = doc(db, 'activeCheckins', uid);
   const activeSnap = await getDoc(activeRef);
   const activeData = activeSnap.exists() ? activeSnap.data() : null;
 
   if (activeData?.activeSinceMillis) {
     const timeSinceActive = now - activeData.activeSinceMillis;
-
     if (timeSinceActive < CHECKIN_LOCK_MS) {
       const remainingMs = CHECKIN_LOCK_MS - timeSinceActive;
-
-      if (activeData.barId === barId) {
-        throw new Error(`CHECKIN_LOCK_SAME_BAR_${remainingMs}`);
-      }
-
+      if (activeData.barId === barId) throw new Error(`CHECKIN_LOCK_SAME_BAR_${remainingMs}`);
       throw new Error(`CHECKIN_LOCK_ACTIVE_${activeData.barId}_${remainingMs}`);
     }
   }
 
   if (activeSnap.exists()) {
     const previous = activeSnap.data();
-
-    if (previous.checkinDocId) {
-      await setDoc(
-        doc(db, 'checkins', previous.checkinDocId),
-        {
-          active: false,
-          updatedAt: serverTimestamp(),
-          updatedAtMillis: now,
-        },
-        { merge: true }
-      );
-    }
+    if (previous.checkinDocId) await setDoc(doc(db, 'checkins', previous.checkinDocId), { active: false, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   }
 
   const userBarRef = doc(db, 'userBarStats', `${uid}_${barId}`);
   const userBarSnap = await getDoc(userBarRef);
-
   let shouldCountVisit = true;
   const previousLastVisitAtMillis = userBarSnap.data()?.lastVisitAtMillis ?? 0;
-
-  if (
-    previousLastVisitAtMillis &&
-    now - previousLastVisitAtMillis < SAME_BAR_VISIT_COOLDOWN_MS
-  ) {
-    shouldCountVisit = false;
-  }
+  if (previousLastVisitAtMillis && now - previousLastVisitAtMillis < SAME_BAR_VISIT_COOLDOWN_MS) shouldCountVisit = false;
 
   const newCheckinRef = doc(collection(db, 'checkins'));
-
-  await setDoc(newCheckinRef, {
-    uid,
-    username,
-    barId,
-    dayKey,
-    active: true,
-    countedVisit: shouldCountVisit,
-    checkedInAt: serverTimestamp(),
-    checkedInAtMillis: now,
-    createdAt: serverTimestamp(),
-    createdAtMillis: now,
-  });
-
-  await setDoc(activeRef, {
-    uid,
-    username,
-    barId,
-    dayKey,
-    checkinDocId: newCheckinRef.id,
-    activeSinceAt: serverTimestamp(),
-    activeSinceMillis: now,
-    updatedAt: serverTimestamp(),
-    updatedAtMillis: now,
-  });
+  await setDoc(newCheckinRef, { uid, username, barId, dayKey, active: true, countedVisit: shouldCountVisit, checkedInAt: serverTimestamp(), checkedInAtMillis: now, createdAt: serverTimestamp(), createdAtMillis: now });
+  await setDoc(activeRef, { uid, username, barId, dayKey, checkinDocId: newCheckinRef.id, activeSinceAt: serverTimestamp(), activeSinceMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now });
 
   if (shouldCountVisit) {
     const currentVisitCount = userBarSnap.data()?.visitCount ?? 0;
-
-    await setDoc(
-      userBarRef,
-      {
-        uid,
-        username,
-        barId,
-        visitCount: currentVisitCount + 1,
-        firstVisitAt: userBarSnap.exists()
-          ? userBarSnap.data()?.firstVisitAt ?? serverTimestamp()
-          : serverTimestamp(),
-        firstVisitAtMillis: userBarSnap.exists()
-          ? userBarSnap.data()?.firstVisitAtMillis ?? now
-          : now,
-        lastVisitAt: serverTimestamp(),
-        lastVisitAtMillis: now,
-        updatedAt: serverTimestamp(),
-        updatedAtMillis: now,
-      },
-      { merge: true }
-    );
-
+    await setDoc(userBarRef, { uid, username, barId, visitCount: currentVisitCount + 1, firstVisitAt: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAt ?? serverTimestamp() : serverTimestamp(), firstVisitAtMillis: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAtMillis ?? now : now, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
     const userStatsRef = doc(db, 'userStats', uid);
     const userStatsSnap = await getDoc(userStatsRef);
     const previousTotalVisits = userStatsSnap.data()?.totalVisits ?? 0;
     const previousUniqueBars = userStatsSnap.data()?.uniqueBars ?? 0;
-
-    await setDoc(
-      userStatsRef,
-      {
-        uid,
-        username,
-        totalVisits: previousTotalVisits + 1,
-        uniqueBars: userBarSnap.exists() ? previousUniqueBars : previousUniqueBars + 1,
-        lastVisitBarId: barId,
-        lastVisitAt: serverTimestamp(),
-        lastVisitAtMillis: now,
-        updatedAt: serverTimestamp(),
-        updatedAtMillis: now,
-      },
-      { merge: true }
-    );
+    await setDoc(userStatsRef, { uid, username, totalVisits: previousTotalVisits + 1, uniqueBars: userBarSnap.exists() ? previousUniqueBars : previousUniqueBars + 1, lastVisitBarId: barId, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   }
 
   const barMeta = msuBars.find((bar) => bar.id === barId);
-  await notifyFriendsOfCheckIn({
-    uid,
-    username,
-    barId,
-    barName: barMeta?.name || barId,
-  });
+  await notifyFriendsOfCheckIn({ uid, username, barId, barName: barMeta?.name || barId });
 }
 
 export async function leaveBar(uid) {
   const activeRef = doc(db, 'activeCheckins', uid);
   const activeSnap = await getDoc(activeRef);
-
-  if (!activeSnap.exists()) {
-    return;
-  }
-
+  if (!activeSnap.exists()) return;
   const activeData = activeSnap.data();
   const now = Date.now();
-
   if (activeData?.activeSinceMillis) {
     const timeSinceActive = now - activeData.activeSinceMillis;
-
-    if (timeSinceActive < CHECKIN_LOCK_MS) {
-      const remainingMs = CHECKIN_LOCK_MS - timeSinceActive;
-      throw new Error(`LEAVE_LOCK_${activeData.barId}_${remainingMs}`);
-    }
+    if (timeSinceActive < CHECKIN_LOCK_MS) throw new Error(`LEAVE_LOCK_${activeData.barId}_${CHECKIN_LOCK_MS - timeSinceActive}`);
   }
-
-  if (activeData.checkinDocId) {
-    await setDoc(
-      doc(db, 'checkins', activeData.checkinDocId),
-      {
-        active: false,
-        leftAt: serverTimestamp(),
-        leftAtMillis: now,
-        updatedAt: serverTimestamp(),
-        updatedAtMillis: now,
-      },
-      { merge: true }
-    );
-  }
-
+  if (activeData.checkinDocId) await setDoc(doc(db, 'checkins', activeData.checkinDocId), { active: false, leftAt: serverTimestamp(), leftAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   await deleteDoc(activeRef);
 }
 
 export async function updateVibe({ uid, username, barId, vibe }) {
   const dayKey = getCurrentDayKey();
-  const ref = doc(db, 'vibes', `${uid}_${barId}_${dayKey}`);
-
-  await setDoc(ref, {
-    uid,
-    username,
-    barId,
-    vibe,
-    dayKey,
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
+  await setDoc(doc(db, 'vibes', `${uid}_${barId}_${dayKey}`), { uid, username, barId, vibe, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
-
 export async function updateCover({ uid, username, barId, range }) {
   const dayKey = getCurrentDayKey();
-  const ref = doc(db, 'coverReports', `${uid}_${barId}_${dayKey}`);
-
-  await setDoc(ref, {
-    uid,
-    username,
-    barId,
-    range,
-    dayKey,
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
+  await setDoc(doc(db, 'coverReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
-
 export async function updateLineLength({ uid, username, barId, lineLength }) {
   const dayKey = getCurrentDayKey();
-  const ref = doc(db, 'lineReports', `${uid}_${barId}_${dayKey}`);
-
-  await setDoc(ref, {
-    uid,
-    username,
-    barId,
-    lineLength,
-    dayKey,
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
+  await setDoc(doc(db, 'lineReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, lineLength, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
-
 export async function addComment({ uid, username, barId, text }) {
-  await addDoc(collection(db, 'comments'), {
-    uid,
-    username,
-    barId,
-    text,
-    hidden: false,
-    dayKey: getCurrentDayKey(),
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
+  await addDoc(collection(db, 'comments'), { uid, username, barId, text, hidden: false, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+export async function deleteCommentById(commentId) { await deleteDoc(doc(db, 'comments', commentId)); }
+export async function hideCommentForUser({ uid, commentId }) { await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), { uid, commentId, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }); }
+
+export async function reportComment({ reporterUid, reporterUsername, commentId, commentOwnerUid, commentOwnerUsername, commentText, barId, barName }) {
+  await addDoc(collection(db, 'reports'), { type: 'comment', dayKey: getCurrentDayKey(), commentId, commentOwnerUid: commentOwnerUid || '', commentOwnerUsername: commentOwnerUsername || '', commentText: commentText || '', barId: barId || '', barName: barName || '', reporterUid: reporterUid || '', reporterUsername: reporterUsername || '', status: 'open', createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  if (reporterUid && commentId) await hideCommentForUser({ uid: reporterUid, commentId });
 }
 
-export async function deleteCommentById(commentId) {
-  await deleteDoc(doc(db, 'comments', commentId));
-}
+export async function hideComment(commentId) { await setDoc(doc(db, 'comments', commentId), { hidden: true, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }, { merge: true }); }
+export async function blockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayUnion(blockedUid) }); }
+export async function unblockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayRemove(blockedUid) }); }
 
-export async function hideCommentForUser({ uid, commentId }) {
-  await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), {
-    uid,
-    commentId,
-    hiddenAt: serverTimestamp(),
-    hiddenAtMillis: Date.now(),
-  });
-}
-
-export async function reportComment({
-  reporterUid,
-  reporterUsername,
-  commentId,
-  commentOwnerUid,
-  commentOwnerUsername,
-  commentText,
-  barId,
-  barName,
-}) {
-  await addDoc(collection(db, 'reports'), {
-    type: 'comment',
-    dayKey: getCurrentDayKey(),
-    commentId,
-    commentOwnerUid: commentOwnerUid || '',
-    commentOwnerUsername: commentOwnerUsername || '',
-    commentText: commentText || '',
-    barId: barId || '',
-    barName: barName || '',
-    reporterUid: reporterUid || '',
-    reporterUsername: reporterUsername || '',
-    status: 'open',
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
-
-  if (reporterUid && commentId) {
-    await hideCommentForUser({
-      uid: reporterUid,
-      commentId,
-    });
-  }
-}
-
-export async function hideComment(commentId) {
-  await setDoc(
-    doc(db, 'comments', commentId),
-    {
-      hidden: true,
-      hiddenAt: serverTimestamp(),
-      hiddenAtMillis: Date.now(),
-    },
-    { merge: true }
-  );
-}
-
-export async function blockUser({ blockerUid, blockedUid }) {
-  const userRef = doc(db, 'users', blockerUid);
-
-  await updateDoc(userRef, {
-    blockedUsers: arrayUnion(blockedUid),
-  });
-}
-
-export async function unblockUser({ blockerUid, blockedUid }) {
-  const userRef = doc(db, 'users', blockerUid);
-
-  await updateDoc(userRef, {
-    blockedUsers: arrayRemove(blockedUid),
-  });
-}
-
-export async function sendInvite({
-  fromUid,
-  fromUsername,
-  toUid,
-  toUsername,
-  barId,
-  barName,
-  message,
-}) {
+export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message }) {
   const now = Date.now();
   const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`);
   const cooldownSnap = await getDoc(cooldownRef);
-
   if (cooldownSnap.exists()) {
     const lastSentAtMillis = cooldownSnap.data()?.lastSentAtMillis ?? 0;
-
-    if (lastSentAtMillis && now - lastSentAtMillis < INVITE_COOLDOWN_MS) {
-      throw new Error('COOLDOWN');
-    }
+    if (lastSentAtMillis && now - lastSentAtMillis < INVITE_COOLDOWN_MS) throw new Error('COOLDOWN');
   }
-
-  await addDoc(collection(db, 'invites'), {
-    fromUid,
-    fromUsername,
-    toUid,
-    toUsername: toUsername.trim().toLowerCase(),
-    barId,
-    barName,
-    message,
-    status: 'pending',
-    createdAt: serverTimestamp(),
-    createdAtMillis: now,
-  });
-
-  await setDoc(cooldownRef, {
-    fromUid,
-    toUid,
-    barId,
-    lastSentAt: serverTimestamp(),
-    lastSentAtMillis: now,
-  });
-
-  await createNotification({
-    toUid,
-    type: 'invite',
-    title: `@${fromUsername} invited you out`,
-    body: message || `Come to ${barName}, it's packed!`,
-    fromUid,
-    fromUsername,
-    barId,
-    barName,
-  });
+  await addDoc(collection(db, 'invites'), { fromUid, fromUsername, toUid, toUsername: toUsername.trim().toLowerCase(), barId, barName, message, status: 'pending', createdAt: serverTimestamp(), createdAtMillis: now });
+  await setDoc(cooldownRef, { fromUid, toUid, barId, lastSentAt: serverTimestamp(), lastSentAtMillis: now });
+  await createNotification({ toUid, type: 'invite', title: `@${fromUsername} invited you out`, body: message || `Come to ${barName}, it's packed!`, fromUid, fromUsername, barId, barName });
 }
 
-export async function dismissInvite(inviteId) {
-  await setDoc(
-    doc(db, 'invites', inviteId),
-    {
-      status: 'dismissed',
-      updatedAt: serverTimestamp(),
-      updatedAtMillis: Date.now(),
-    },
-    { merge: true }
-  );
-}
+export async function dismissInvite(inviteId) { await setDoc(doc(db, 'invites', inviteId), { status: 'dismissed', updatedAt: serverTimestamp(), updatedAtMillis: Date.now() }, { merge: true }); }
 
 export async function toggleReaction({ uid, username, commentId, emoji }) {
   const ref = doc(db, 'commentReactions', `${commentId}_${uid}`);
   const snap = await getDoc(ref);
-
-  if (snap.exists() && snap.data().emoji === emoji) {
-    await deleteDoc(ref);
-    return;
-  }
-
-  await setDoc(ref, {
-    uid,
-    username,
-    commentId,
-    emoji,
-    dayKey: getCurrentDayKey(),
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
+  if (snap.exists() && snap.data().emoji === emoji) { await deleteDoc(ref); return; }
+  await setDoc(ref, { uid, username, commentId, emoji, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
