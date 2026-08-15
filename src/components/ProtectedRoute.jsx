@@ -6,7 +6,17 @@ export default function ProtectedRoute({ children }) {
   const location = useLocation();
 
   if (authLoading) {
-    return <div className="screen-center">Loading Here...</div>;
+    return (
+      <div className="app-loading-shell" aria-label="Loading Here">
+        <img src="/logo-full.png" alt="Here" className="app-loading-logo" />
+        <div className="loading-skeleton loading-skeleton-hero" />
+        <div className="loading-skeleton-row">
+          <div className="loading-skeleton" />
+          <div className="loading-skeleton" />
+        </div>
+        <div className="loading-skeleton loading-skeleton-card" />
+      </div>
+    );
   }
 
   if (!isAuthed) {
