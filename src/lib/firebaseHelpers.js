@@ -20,7 +20,8 @@ import { db } from '../firebase';
 import { getCurrentDayKey } from './day';
 import { msuBars } from './bars';
 
-const REENTRY_COOLDOWN_MS = 20 * 60 * 1000;
+const SAME_BAR_REENTRY_COOLDOWN_MS = 20 * 60 * 1000;
+const OTHER_BAR_REENTRY_COOLDOWN_MS = 5 * 60 * 1000;
 const INVITE_COOLDOWN_MS = 5 * 60 * 1000;
 
 async function createNotification({ toUid, type, title, body, fromUid = '', fromUsername = '', barId = '', barName = '', meta = {} }) {
@@ -179,8 +180,14 @@ export async function upsertCheckIn({ uid, username, barId }) {
 
     const lastLeftAtMillis = userStatsData.lastLeftAtMillis ?? 0;
     const lastLeftBarId = userStatsData.lastLeftBarId ?? '';
-    if (lastLeftBarId === barId && lastLeftAtMillis && now - lastLeftAtMillis < REENTRY_COOLDOWN_MS) {
-      throw new Error(`SAME_BAR_COOLDOWN_${REENTRY_COOLDOWN_MS - (now - lastLeftAtMillis)}`);
+    const elapsedSinceLeaving = lastLeftAtMillis ? now - lastLeftAtMillis : Number.POSITIVE_INFINITY;
+
+    if (lastLeftBarId === barId && elapsedSinceLeaving < SAME_BAR_REENTRY_COOLDOWN_MS) {
+      throw new Error(`SAME_BAR_COOLDOWN_${SAME_BAR_REENTRY_COOLDOWN_MS - elapsedSinceLeaving}`);
+    }
+
+    if (lastLeftBarId && lastLeftBarId !== barId && elapsedSinceLeaving < OTHER_BAR_REENTRY_COOLDOWN_MS) {
+      throw new Error(`OTHER_BAR_COOLDOWN_${OTHER_BAR_REENTRY_COOLDOWN_MS - elapsedSinceLeaving}`);
     }
 
     const currentVisitCount = userBarSnap.data()?.visitCount ?? 0;
