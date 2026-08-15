@@ -11,10 +11,43 @@ export default function BarCard({ bar, stats, isHottest, isCurrentBar = false })
             <h3>{bar.name}</h3>
             <p>{bar.neighborhood}</p>
           </div>
-          <div className="bar-card-photo-badges">
-            {isCurrentBar ? <span className="status-pill current-bar-pill">You Are Here</span> : null}
-            {isHottest ? <span className="status-pill hottest-pill">Hottest</span> : null}
-          </div>
+
+          {isCurrentBar ? (
+            <span
+              className="status-pill current-bar-pill"
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '12px',
+                zIndex: 4,
+                whiteSpace: 'nowrap',
+                padding: '8px 11px',
+                borderRadius: '10px',
+                background: 'rgba(7, 25, 13, 0.94)',
+                border: '1px solid rgba(91,255,138,.5)',
+                color: '#7dff9f',
+                fontSize: '.78rem',
+                fontWeight: 900,
+              }}
+            >
+              ✓ You’re Here
+            </span>
+          ) : null}
+
+          {isHottest ? (
+            <span
+              className="status-pill hottest-pill"
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: '12px',
+                zIndex: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Hottest
+            </span>
+          ) : null}
         </div>
       ) : (
         <div className="bar-card-topline">
@@ -22,8 +55,8 @@ export default function BarCard({ bar, stats, isHottest, isCurrentBar = false })
             <h3>{bar.name}</h3>
             <p>{bar.neighborhood}</p>
           </div>
-          <div className="bar-card-photo-badges">
-            {isCurrentBar ? <span className="status-pill current-bar-pill">You Are Here</span> : null}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {isCurrentBar ? <span className="status-pill current-bar-pill">✓ You’re Here</span> : null}
             {isHottest ? <span className="status-pill hottest-pill">Hottest</span> : null}
           </div>
         </div>
