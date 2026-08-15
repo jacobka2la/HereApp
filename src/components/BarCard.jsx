@@ -24,7 +24,11 @@ export default function BarCard({ bar, stats, isHottest }) {
           </div>
           <div>
             <span className="label">Cover</span>
-            <strong>{stats.coverSummary ? `${stats.coverSummary.label}` : 'No reports yet'}</strong>
+            <strong>{stats.coverSummary ? stats.coverSummary.label : 'No reports yet'}</strong>
+          </div>
+          <div>
+            <span className="label">Line</span>
+            <strong>{stats.lineSummary ? stats.lineSummary.label : 'No reports yet'}</strong>
           </div>
         </div>
       </Link>

@@ -46,7 +46,7 @@ button {
 
 .app-shell {
   min-height: 100vh;
-  padding: 20px;
+  padding: calc(env(safe-area-inset-top) + 60px) 20px 20px;
 }
 
 .page-shell {
@@ -56,7 +56,7 @@ button {
 
 .topbar {
   max-width: 1180px;
-  margin: 0 auto 22px;
+  margin: 32px auto 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -66,7 +66,6 @@ button {
   border: 1px solid rgba(42, 60, 49, 0.7);
   border-radius: 24px;
   backdrop-filter: blur(10px);
-  position: sticky;
   top: 14px;
   z-index: 10;
 }
@@ -444,7 +443,12 @@ button {
 
 @media (max-width: 640px) {
   .app-shell {
+    padding: calc(env(safe-area-inset-top) + 60px) 14px 14px;
+  }
+
+  .topbar {
     padding: 14px;
+    border-radius: 20px;
   }
 
   .topbar {
@@ -464,3 +468,23 @@ button {
     width: 100%;
   }
 }
+
+.auth-logo-wrap {
+  height: 48px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 10px;
+  overflow: visible;
+}
+
+
+.auth-logo-large {
+  height: 52px;
+  transform: scale(5.2);
+  transform-origin: center;
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 0 10px #5BFF8A);
+}
+

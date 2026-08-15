@@ -21,7 +21,7 @@ export default function HottestHero({ bar, stats }) {
         <span className="hero-kicker">🔥 Hottest Bar Right Now 🔥</span>
         <h1>{bar.name}</h1>
         <p>
-          Live score is based on check-ins, fresh vibe updates, and comment reactions happening tonight.
+          Live score is based on check-ins, fresh vibe updates, line reports, and comment reactions happening tonight.
         </p>
       </div>
 
@@ -37,6 +37,10 @@ export default function HottestHero({ bar, stats }) {
         <div>
           <span className="label">Cover</span>
           <strong>{stats.coverSummary ? stats.coverSummary.label : 'No reports yet'}</strong>
+        </div>
+        <div>
+          <span className="label">Line</span>
+          <strong>{stats.lineSummary ? stats.lineSummary.label : 'No reports yet'}</strong>
         </div>
       </div>
 

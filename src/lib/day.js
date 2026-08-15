@@ -38,10 +38,9 @@ export function getCurrentDayKey(date = new Date()) {
   return base.toISOString().slice(0, 10);
 }
 
-export function normalizeUsername(input = '') {
-  const cleaned = input.trim().toLowerCase();
-  if (!/^[a-z0-9_]{3,20}$/.test(cleaned)) return '';
-  return cleaned;
+function normalizeUsername(value = "") {
+  const cleaned = value.trim().toLowerCase();
+  return /^(?=.*\d)[a-z0-9_]{5,15}$/.test(cleaned) ? cleaned : "";
 }
 
 export function formatRelativeTime(timestampMillis) {
