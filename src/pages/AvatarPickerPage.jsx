@@ -1,4 +1,5 @@
-import { Navigate, useNavigate, useState } from 'react-router-dom';
+import { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { avatars } from '../lib/avatars';
 import { useAuth } from '../context/AuthContext';
 import '../avatar-picker.css';
