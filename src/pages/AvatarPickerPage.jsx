@@ -21,7 +21,7 @@ export default function AvatarPickerPage() {
   }
   if (sessionStorage.getItem(AVATAR_SIGNUP_FLAG) !== '1') return <Navigate to="/" replace />;
 
-  const continueWithAvatar = async () => {
+  const confirmAvatar = async () => {
     if (!selected || saving) return;
 
     setSaving(true);
@@ -48,7 +48,7 @@ export default function AvatarPickerPage() {
       <div className="avatar-picker-inner">
         <div className="avatar-picker-heading">
           <h1>Pick Your Avatar</h1>
-          <p>Choose one. Once you pick it, it’s yours for good.</p>
+          <p>Select one below, then tap Confirm Avatar. Once confirmed, it’s yours for good.</p>
         </div>
 
         <div className="avatar-grid">
@@ -56,13 +56,17 @@ export default function AvatarPickerPage() {
             <button
               key={avatar.id}
               className={`avatar-option ${selected === avatar.id ? 'avatar-option-selected' : ''}`}
-              onClick={() => setSelected(avatar.id)}
+              onClick={() => {
+                setSelected(avatar.id);
+                setError('');
+              }}
               type="button"
               aria-label={avatar.alt}
               aria-pressed={selected === avatar.id}
             >
               <img className="avatar-art" src={avatar.image} alt="" />
               <span className="avatar-select-dot" />
+              <span className="avatar-select-label">{selected === avatar.id ? 'Selected' : 'Select'}</span>
             </button>
           ))}
         </div>
@@ -73,9 +77,9 @@ export default function AvatarPickerPage() {
           className="primary-button avatar-continue"
           type="button"
           disabled={!selected || saving}
-          onClick={continueWithAvatar}
+          onClick={confirmAvatar}
         >
-          {saving ? 'Saving…' : 'Continue →'}
+          {saving ? 'Saving…' : 'Confirm Avatar'}
         </button>
       </div>
     </main>
