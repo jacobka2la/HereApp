@@ -20,8 +20,7 @@ import { db } from '../firebase';
 import { getCurrentDayKey } from './day';
 import { msuBars } from './bars';
 
-const CHECKIN_LOCK_MS = 20 * 60 * 1000;
-const SAME_BAR_VISIT_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const REENTRY_COOLDOWN_MS = 20 * 60 * 1000;
 const INVITE_COOLDOWN_MS = 5 * 60 * 1000;
 
 async function createNotification({ toUid, type, title, body, fromUid = '', fromUsername = '', barId = '', barName = '', meta = {} }) {
@@ -171,34 +170,72 @@ export async function upsertCheckIn({ uid, username, barId }) {
     const userBarSnap = await transaction.get(userBarRef);
     const userStatsSnap = await transaction.get(userStatsRef);
     const activeData = activeSnap.exists() ? activeSnap.data() : null;
+    const userStatsData = userStatsSnap.exists() ? userStatsSnap.data() : {};
 
-    if (activeData?.activeSinceMillis) {
-      const timeSinceActive = now - activeData.activeSinceMillis;
-      if (timeSinceActive < CHECKIN_LOCK_MS) {
-        const remainingMs = CHECKIN_LOCK_MS - timeSinceActive;
-        if (activeData.barId === barId) throw new Error(`CHECKIN_LOCK_SAME_BAR_${remainingMs}`);
-        throw new Error(`CHECKIN_LOCK_ACTIVE_${activeData.barId}_${remainingMs}`);
-      }
+    if (activeData?.barId) {
+      if (activeData.barId === barId) throw new Error('ALREADY_CHECKED_IN');
+      throw new Error(`ACTIVE_AT_OTHER_BAR_${activeData.barId}`);
     }
 
-    const previousLastVisitAtMillis = userBarSnap.data()?.lastVisitAtMillis ?? 0;
-    const shouldCountVisit = !previousLastVisitAtMillis || now - previousLastVisitAtMillis >= SAME_BAR_VISIT_COOLDOWN_MS;
-
-    if (activeData?.checkinDocId) {
-      transaction.set(doc(db, 'checkins', activeData.checkinDocId), { active: false, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
+    const lastLeftAtMillis = userStatsData.lastLeftAtMillis ?? 0;
+    if (lastLeftAtMillis && now - lastLeftAtMillis < REENTRY_COOLDOWN_MS) {
+      throw new Error(`CHECKIN_COOLDOWN_${REENTRY_COOLDOWN_MS - (now - lastLeftAtMillis)}`);
     }
 
-    transaction.set(newCheckinRef, { uid, username, barId, dayKey, active: true, countedVisit: shouldCountVisit, checkedInAt: serverTimestamp(), checkedInAtMillis: now, createdAt: serverTimestamp(), createdAtMillis: now });
-    transaction.set(activeRef, { uid, username, barId, dayKey, checkinDocId: newCheckinRef.id, activeSinceAt: serverTimestamp(), activeSinceMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now });
+    const currentVisitCount = userBarSnap.data()?.visitCount ?? 0;
+    const previousTotalVisits = userStatsData.totalVisits ?? 0;
+    const previousUniqueBars = userStatsData.uniqueBars ?? 0;
+    const isFirstVisitToBar = !userBarSnap.exists();
 
-    if (shouldCountVisit) {
-      const currentVisitCount = userBarSnap.data()?.visitCount ?? 0;
-      transaction.set(userBarRef, { uid, username, barId, visitCount: currentVisitCount + 1, firstVisitAt: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAt ?? serverTimestamp() : serverTimestamp(), firstVisitAtMillis: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAtMillis ?? now : now, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
+    transaction.set(newCheckinRef, {
+      uid,
+      username,
+      barId,
+      dayKey,
+      active: true,
+      countedVisit: true,
+      checkedInAt: serverTimestamp(),
+      checkedInAtMillis: now,
+      createdAt: serverTimestamp(),
+      createdAtMillis: now,
+    });
 
-      const previousTotalVisits = userStatsSnap.data()?.totalVisits ?? 0;
-      const previousUniqueBars = userStatsSnap.data()?.uniqueBars ?? 0;
-      transaction.set(userStatsRef, { uid, username, totalVisits: previousTotalVisits + 1, uniqueBars: userBarSnap.exists() ? previousUniqueBars : previousUniqueBars + 1, lastVisitBarId: barId, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
-    }
+    transaction.set(activeRef, {
+      uid,
+      username,
+      barId,
+      dayKey,
+      checkinDocId: newCheckinRef.id,
+      activeSinceAt: serverTimestamp(),
+      activeSinceMillis: now,
+      updatedAt: serverTimestamp(),
+      updatedAtMillis: now,
+    });
+
+    transaction.set(userBarRef, {
+      uid,
+      username,
+      barId,
+      visitCount: currentVisitCount + 1,
+      firstVisitAt: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAt ?? serverTimestamp() : serverTimestamp(),
+      firstVisitAtMillis: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAtMillis ?? now : now,
+      lastVisitAt: serverTimestamp(),
+      lastVisitAtMillis: now,
+      updatedAt: serverTimestamp(),
+      updatedAtMillis: now,
+    }, { merge: true });
+
+    transaction.set(userStatsRef, {
+      uid,
+      username,
+      totalVisits: previousTotalVisits + 1,
+      uniqueBars: isFirstVisitToBar ? previousUniqueBars + 1 : previousUniqueBars,
+      lastVisitBarId: barId,
+      lastVisitAt: serverTimestamp(),
+      lastVisitAtMillis: now,
+      updatedAt: serverTimestamp(),
+      updatedAtMillis: now,
+    }, { merge: true });
   });
 
   const barMeta = msuBars.find((bar) => bar.id === barId);
@@ -206,17 +243,38 @@ export async function upsertCheckIn({ uid, username, barId }) {
 }
 
 export async function leaveBar(uid) {
-  const activeRef = doc(db, 'activeCheckins', uid);
-  const activeSnap = await getDoc(activeRef);
-  if (!activeSnap.exists()) return;
-  const activeData = activeSnap.data();
   const now = Date.now();
-  if (activeData?.activeSinceMillis) {
-    const timeSinceActive = now - activeData.activeSinceMillis;
-    if (timeSinceActive < CHECKIN_LOCK_MS) throw new Error(`LEAVE_LOCK_${activeData.barId}_${CHECKIN_LOCK_MS - timeSinceActive}`);
-  }
-  if (activeData.checkinDocId) await setDoc(doc(db, 'checkins', activeData.checkinDocId), { active: false, leftAt: serverTimestamp(), leftAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
-  await deleteDoc(activeRef);
+  const activeRef = doc(db, 'activeCheckins', uid);
+  const userStatsRef = doc(db, 'userStats', uid);
+
+  await runTransaction(db, async (transaction) => {
+    const activeSnap = await transaction.get(activeRef);
+    const userStatsSnap = await transaction.get(userStatsRef);
+    if (!activeSnap.exists()) return;
+
+    const activeData = activeSnap.data();
+
+    if (activeData.checkinDocId) {
+      transaction.set(doc(db, 'checkins', activeData.checkinDocId), {
+        active: false,
+        leftAt: serverTimestamp(),
+        leftAtMillis: now,
+        updatedAt: serverTimestamp(),
+        updatedAtMillis: now,
+      }, { merge: true });
+    }
+
+    transaction.delete(activeRef);
+    transaction.set(userStatsRef, {
+      uid,
+      username: activeData.username || userStatsSnap.data()?.username || '',
+      lastLeftBarId: activeData.barId || '',
+      lastLeftAt: serverTimestamp(),
+      lastLeftAtMillis: now,
+      updatedAt: serverTimestamp(),
+      updatedAtMillis: now,
+    }, { merge: true });
+  });
 }
 
 export async function updateVibe({ uid, username, barId, vibe }) {
