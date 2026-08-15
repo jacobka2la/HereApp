@@ -74,7 +74,10 @@ service cloud.firestore {
     }
 
     match /userBarStats/{docId} {
-      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      // Direct transaction reads must work even before the first stats document exists.
+      allow get: if signedIn() && docId.matches('^' + request.auth.uid + '_.*$');
+      // Profile uses a collection query scoped to the signed-in user's uid.
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && docId.matches('^' + request.auth.uid + '_.*$') && profileUsernameMatches();
       allow update: if signedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid && docId.matches('^' + request.auth.uid + '_.*$') && profileUsernameMatches();
       allow delete: if false;
