@@ -195,55 +195,10 @@ export async function upsertCheckIn({ uid, username, barId }) {
     const previousUniqueBars = userStatsData.uniqueBars ?? 0;
     const isFirstVisitToBar = !userBarSnap.exists();
 
-    transaction.set(newCheckinRef, {
-      uid,
-      username,
-      barId,
-      dayKey,
-      active: true,
-      countedVisit: true,
-      checkedInAt: serverTimestamp(),
-      checkedInAtMillis: now,
-      createdAt: serverTimestamp(),
-      createdAtMillis: now,
-    });
-
-    transaction.set(activeRef, {
-      uid,
-      username,
-      barId,
-      dayKey,
-      checkinDocId: newCheckinRef.id,
-      activeSinceAt: serverTimestamp(),
-      activeSinceMillis: now,
-      updatedAt: serverTimestamp(),
-      updatedAtMillis: now,
-    });
-
-    transaction.set(userBarRef, {
-      uid,
-      username,
-      barId,
-      visitCount: currentVisitCount + 1,
-      firstVisitAt: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAt ?? serverTimestamp() : serverTimestamp(),
-      firstVisitAtMillis: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAtMillis ?? now : now,
-      lastVisitAt: serverTimestamp(),
-      lastVisitAtMillis: now,
-      updatedAt: serverTimestamp(),
-      updatedAtMillis: now,
-    }, { merge: true });
-
-    transaction.set(userStatsRef, {
-      uid,
-      username,
-      totalVisits: previousTotalVisits + 1,
-      uniqueBars: isFirstVisitToBar ? previousUniqueBars + 1 : previousUniqueBars,
-      lastVisitBarId: barId,
-      lastVisitAt: serverTimestamp(),
-      lastVisitAtMillis: now,
-      updatedAt: serverTimestamp(),
-      updatedAtMillis: now,
-    }, { merge: true });
+    transaction.set(newCheckinRef, { uid, username, barId, dayKey, active: true, countedVisit: true, checkedInAt: serverTimestamp(), checkedInAtMillis: now, createdAt: serverTimestamp(), createdAtMillis: now });
+    transaction.set(activeRef, { uid, username, barId, dayKey, checkinDocId: newCheckinRef.id, activeSinceAt: serverTimestamp(), activeSinceMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now });
+    transaction.set(userBarRef, { uid, username, barId, visitCount: currentVisitCount + 1, firstVisitAt: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAt ?? serverTimestamp() : serverTimestamp(), firstVisitAtMillis: userBarSnap.exists() ? userBarSnap.data()?.firstVisitAtMillis ?? now : now, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
+    transaction.set(userStatsRef, { uid, username, totalVisits: previousTotalVisits + 1, uniqueBars: isFirstVisitToBar ? previousUniqueBars + 1 : previousUniqueBars, lastVisitBarId: barId, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   });
 
   const barMeta = msuBars.find((bar) => bar.id === barId);
@@ -259,29 +214,14 @@ export async function leaveBar(uid) {
     const activeSnap = await transaction.get(activeRef);
     const userStatsSnap = await transaction.get(userStatsRef);
     if (!activeSnap.exists()) return;
-
     const activeData = activeSnap.data();
 
     if (activeData.checkinDocId) {
-      transaction.set(doc(db, 'checkins', activeData.checkinDocId), {
-        active: false,
-        leftAt: serverTimestamp(),
-        leftAtMillis: now,
-        updatedAt: serverTimestamp(),
-        updatedAtMillis: now,
-      }, { merge: true });
+      transaction.set(doc(db, 'checkins', activeData.checkinDocId), { active: false, leftAt: serverTimestamp(), leftAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
     }
 
     transaction.delete(activeRef);
-    transaction.set(userStatsRef, {
-      uid,
-      username: activeData.username || userStatsSnap.data()?.username || '',
-      lastLeftBarId: activeData.barId || '',
-      lastLeftAt: serverTimestamp(),
-      lastLeftAtMillis: now,
-      updatedAt: serverTimestamp(),
-      updatedAtMillis: now,
-    }, { merge: true });
+    transaction.set(userStatsRef, { uid, username: activeData.username || userStatsSnap.data()?.username || '', lastLeftBarId: activeData.barId || '', lastLeftAt: serverTimestamp(), lastLeftAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   });
 }
 
@@ -297,8 +237,8 @@ export async function updateLineLength({ uid, username, barId, lineLength }) {
   const dayKey = getCurrentDayKey();
   await setDoc(doc(db, 'lineReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, lineLength, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
-export async function addComment({ uid, username, barId, text }) {
-  await addDoc(collection(db, 'comments'), { uid, username, barId, text, hidden: false, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+export async function addComment({ uid, username, avatarId = '', barId, text }) {
+  await addDoc(collection(db, 'comments'), { uid, username, avatarId, barId, text, hidden: false, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
 export async function deleteCommentById(commentId) { await deleteDoc(doc(db, 'comments', commentId)); }
 export async function hideCommentForUser({ uid, commentId }) { await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), { uid, commentId, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }); }
