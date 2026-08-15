@@ -14,6 +14,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { avatars } from '../lib/avatars';
 
 function normalizeUsername(username) {
   return username.trim().toLowerCase();
@@ -29,6 +30,7 @@ function buildPublicProfile(userData) {
     username: userData.username,
     displayUsername: userData.displayUsername || userData.username,
     displayUsernameLower: (userData.displayUsername || userData.username || '').toLowerCase(),
+    avatarId: userData.avatarId || null,
     updatedAt: serverTimestamp(),
   };
 }
@@ -108,6 +110,7 @@ export function AuthProvider({ children }) {
       username: cleanUsername,
       displayUsername,
       displayUsernameLower: displayUsername.toLowerCase(),
+      avatarId: null,
       blockedUsers: [],
       createdAt: serverTimestamp(),
     };
@@ -119,6 +122,21 @@ export function AuthProvider({ children }) {
       ...userData,
       createdAt: new Date().toISOString(),
     });
+  };
+
+  const setAvatarOnce = async (avatarId) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error('NOT_AUTHENTICATED');
+    if (!avatars.some((avatar) => avatar.id === avatarId)) throw new Error('INVALID_AVATAR');
+
+    const userRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userRef);
+    const currentData = userSnap.data() || {};
+    if (currentData.avatarId) throw new Error('AVATAR_ALREADY_SET');
+
+    await setDoc(userRef, { avatarId, avatarSelectedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, 'publicProfiles', currentUser.uid), { avatarId, updatedAt: serverTimestamp() }, { merge: true });
+    setProfile((current) => ({ ...(current || currentData), avatarId }));
   };
 
   const logIn = async (email, password) => {
@@ -152,6 +170,7 @@ export function AuthProvider({ children }) {
       authLoading,
       isAuthed: !!firebaseUser,
       signUp,
+      setAvatarOnce,
       logIn,
       logOut,
       deleteAccount,
