@@ -12,9 +12,9 @@ html,body { scroll-behavior:auto!important; overscroll-behavior-y:none; }
 .hero-card { padding:20px 17px; }
 .hero-card h1 { font-size:clamp(1.7rem,7vw,2.25rem); }
 .bar-card { padding:0 15px 15px; border-radius:16px; overflow:hidden; }
-.bar-card-photo-wrap { position:relative; height:150px; margin:0 -15px 14px; overflow:hidden; background:var(--surface-raised); }
-.bar-card-photo { width:100%; height:100%; display:block; object-fit:cover; }
-.bar-card-photo-shade { position:absolute; inset:0; background:linear-gradient(to bottom,rgba(0,0,0,.08) 25%,rgba(3,8,5,.86) 100%); pointer-events:none; }
+.bar-card-photo-wrap { position:relative; min-height:190px; margin:0 -15px 14px; overflow:hidden; background:#070b08; display:flex; align-items:center; justify-content:center; }
+.bar-card-photo { width:100%; height:190px; display:block; object-fit:contain; object-position:center; }
+.bar-card-photo-shade { position:absolute; inset:0; background:linear-gradient(to bottom,rgba(0,0,0,.02) 45%,rgba(3,8,5,.82) 100%); pointer-events:none; }
 .bar-card-photo-title { position:absolute; left:16px; right:16px; bottom:13px; z-index:2; }
 .bar-card-photo-title h3 { margin:0; color:#fff; font-size:1.35rem; line-height:1.05; text-shadow:0 2px 12px rgba(0,0,0,.65); }
 .bar-card-photo-title p { margin:4px 0 0; color:rgba(240,250,243,.78); font-size:.84rem; font-weight:650; }
@@ -109,5 +109,6 @@ html,body { scroll-behavior:auto!important; overscroll-behavior-y:none; }
  .auth-panel { padding-left:4px; padding-right:4px; }
  .auth-logo-clean { width:min(380px,96vw)!important; }
  .auth-heading h1 { font-size:2.15rem; }
- .bar-card-photo-wrap { height:142px; }
+ .bar-card-photo-wrap { min-height:180px; }
+ .bar-card-photo { height:180px; }
 }
