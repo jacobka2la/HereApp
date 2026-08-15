@@ -152,7 +152,7 @@ export default function FriendsPage() {
             const disabled = remaining > 0 || !activeBarMeta;
             return <div key={friend.id} style={rowStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}><FriendAvatar avatarId={friend.avatarId} username={friend.username} size={52} /><div style={{ fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis' }}>@{friend.username}</div></div>
-              <button className="primary-button" disabled={disabled} onClick={() => handleInviteFriendToBar(friend)} style={{ opacity: disabled ? .5 : 1 }}>{remaining > 0 ? `Wait ${formatCooldown(remaining)}` : 'Invite To Bar'}</button>
+              <button className="primary-button" disabled={disabled} onClick={() => handleInviteFriendToBar(friend)} style={{ opacity: disabled ? .5 : 1, whiteSpace: 'nowrap', fontSize: '.82rem', paddingInline: 12 }}>{remaining > 0 ? `Wait ${formatCooldown(remaining)}` : activeBarMeta ? `Invite @${friend.username} To ${activeBarMeta.name}` : 'Check In To Invite'}</button>
             </div>;
           }) : <div style={rowStyle}>No Friends Added Yet.</div>}
         </div>
