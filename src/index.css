@@ -16,7 +16,11 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--bg); }
+html {
+  background: var(--bg);
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: none;
+}
 body {
   margin: 0;
   min-width: 320px;
@@ -24,6 +28,7 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -32,7 +37,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 .app-shell {
   min-height: 100vh;
-  padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 96px);
+  padding: max(62px, calc(env(safe-area-inset-top) + 16px)) 14px calc(env(safe-area-inset-bottom) + 96px);
 }
 
 .page-shell {
@@ -47,8 +52,8 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 }
 
 .home-intro {
-  text-align: center;
-  padding: 2px 10px 4px;
+  text-align: left;
+  padding: 0 2px 8px;
 }
 
 .home-intro .eyebrow {
@@ -64,13 +69,13 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .home-intro h1 {
   margin: 0;
   font-size: clamp(2rem, 9vw, 2.8rem);
-  line-height: 1;
+  line-height: 1.02;
   letter-spacing: -0.05em;
   font-weight: 900;
 }
 
 .home-intro p {
-  margin: 10px auto 0;
+  margin: 10px 0 0;
   max-width: 540px;
   color: var(--text-soft);
   font-size: 0.94rem;
@@ -92,11 +97,11 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   padding: 22px 18px;
   display: grid;
   gap: 16px;
-  text-align: center;
+  text-align: left;
 }
 
-.hero-card-empty { padding: 26px 18px; }
-.hero-copy { text-align: center; }
+.hero-card-empty { padding: 24px 18px; }
+.hero-copy { text-align: left; }
 
 .hero-kicker {
   display: block;
@@ -118,7 +123,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 }
 
 .hero-card p {
-  margin: 9px auto 0;
+  margin: 9px 0 0;
   max-width: 560px;
   color: var(--text-soft);
   line-height: 1.45;
@@ -146,6 +151,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   color: var(--text-soft);
   font-size: 0.8rem;
   font-weight: 700;
+  text-transform: capitalize;
 }
 
 .hero-stats strong,
@@ -168,7 +174,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   border-radius: 13px;
 }
 
-.hero-button { margin: 0 auto; }
+.hero-button { margin: 0; }
 .text-button { margin-top: 14px; background: transparent; color: var(--green); font-weight: 750; }
 
 .bars-section {
@@ -187,7 +193,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 .section-headline-centered {
   display: block;
-  text-align: center;
+  text-align: left;
 }
 
 .section-headline h2,
@@ -195,6 +201,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   margin: 0;
   font-size: 1.35rem;
   letter-spacing: -0.03em;
+  text-transform: capitalize;
 }
 
 .section-headline p {
@@ -225,7 +232,6 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   color: #fff;
   padding: 13px 14px;
   outline: none;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
 .search-wrap input:focus,
@@ -246,7 +252,6 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   display: grid;
   gap: 14px;
   padding: 16px;
-  transition: background 0.14s ease, border-color 0.14s ease;
 }
 
 .bar-card:active { background: #0e1611; }
@@ -263,6 +268,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   margin: 0;
   font-size: 1.2rem;
   letter-spacing: -0.025em;
+  text-transform: capitalize;
 }
 
 .bar-card p {
@@ -303,7 +309,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   gap: 5px;
   padding: 6px;
   border-radius: 18px;
-  background: rgba(7,12,8,0.96);
+  background: rgba(7,12,8,0.97);
   border: 1px solid var(--line);
   box-shadow: 0 12px 30px rgba(0,0,0,0.32);
   backdrop-filter: blur(18px);
@@ -314,45 +320,175 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .auth-shell,
 .screen-center {
   min-height: 100vh;
+  padding: max(66px, calc(env(safe-area-inset-top) + 18px)) 18px 34px;
+}
+
+.auth-shell {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.screen-center {
   display: grid;
   place-items: center;
-  padding: 22px 16px;
 }
 
 .auth-panel {
   width: min(500px, 100%);
-  padding: 26px 22px;
+  padding: 0;
   text-align: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
-.auth-logo-wrap {
-  height: 52px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 16px;
-  overflow: visible;
+.auth-brand {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 0 0 28px;
 }
 
-.auth-logo-large {
-  height: 46px;
-  transform: scale(3.7);
-  transform-origin: center;
+.auth-logo-clean {
+  width: min(210px, 58vw);
+  height: auto;
   display: block;
-  margin: 0 auto;
-  filter: none;
+  margin: 0;
+}
+
+.auth-brand p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.auth-heading {
+  margin-bottom: 22px;
+}
+
+.auth-heading h1 {
+  text-transform: capitalize;
+}
+
+.auth-heading p {
+  margin: 10px auto 0;
+  color: var(--text-soft);
+  line-height: 1.45;
+  max-width: 440px;
 }
 
 .auth-form {
   display: grid;
   gap: 14px;
-  margin-top: 22px;
+  margin-top: 0;
   text-align: left;
 }
 
 .auth-form label,
-.comment-form { display: grid; gap: 7px; font-weight: 700; }
-.auth-note { text-align: center; color: var(--text-soft); font-size: 0.88rem; }
+.comment-form {
+  display: grid;
+  gap: 7px;
+  font-weight: 800;
+}
+
+.auth-form input {
+  min-height: 54px;
+}
+
+.signup-requirements {
+  display: grid;
+  gap: 11px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.025);
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
+.signup-requirements-title {
+  color: var(--text);
+  font-weight: 850;
+  text-transform: capitalize;
+}
+
+.requirement-row {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.requirement-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(91,255,138,0.08);
+}
+
+.legal-check {
+  display: grid !important;
+  grid-template-columns: 24px 1fr;
+  gap: 12px !important;
+  align-items: start;
+  padding: 14px 15px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
+  font-weight: 650 !important;
+  line-height: 1.45;
+}
+
+.legal-check input {
+  appearance: none;
+  width: 22px !important;
+  min-height: 22px !important;
+  height: 22px;
+  padding: 0 !important;
+  margin: 0;
+  border: 2px solid rgba(255,255,255,0.38);
+  border-radius: 7px;
+  background: transparent;
+}
+
+.legal-check input:checked {
+  background: var(--green);
+  border-color: var(--green);
+  box-shadow: inset 0 0 0 4px #0a120d;
+}
+
+.legal-check a { color: var(--green); font-weight: 800; }
+
+.auth-submit {
+  width: 100%;
+  min-height: 54px;
+  text-align: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.auth-switch {
+  display: block;
+  margin: 18px auto 0;
+  font-weight: 800;
+}
+
+.auth-footer-links {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
 
 .error-banner,
 .info-banner,
@@ -381,27 +517,29 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .comment-topline { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .reaction-row { grid-auto-flow: column; grid-auto-columns: max-content; gap: 8px; overflow-x: auto; padding-top: 10px; }
 
-/* Make the existing inline-heavy Profile/Friends cards feel intentional. */
+/* Clean up the inline-heavy Friends/Profile layouts without changing their data logic. */
 .home-stack > div {
   border-radius: 18px !important;
   border-color: var(--line) !important;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.18) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.16) !important;
 }
 
 .home-stack h1,
-.home-stack h2 {
+.home-stack h2,
+.home-stack h3 {
   letter-spacing: -0.03em;
+  text-transform: capitalize;
 }
 
 .home-stack > div:first-child > div:first-child {
-  justify-content: center !important;
-  text-align: center;
+  justify-content: flex-start !important;
+  text-align: left !important;
 }
 
 .home-stack > div:nth-child(2) > div:first-child,
 .home-stack > div:nth-child(3) > div,
 .home-stack > div:nth-child(4) > div:first-child {
-  text-align: center;
+  text-align: left;
 }
 
 .home-stack > div:nth-child(2) > div:nth-child(2) > div,
@@ -413,26 +551,58 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 .home-stack p { line-height: 1.5; }
 
+/* Capitalize the small stat/title labels the Profile page currently renders as plain divs. */
+.home-stack > div:nth-child(2) > div:nth-child(2) > div > div:first-child,
+.home-stack > div:nth-child(3) > div > div > div:not(:first-child),
+.home-stack > div:nth-child(4) > div:first-child h2 {
+  text-transform: capitalize;
+}
+
+/* No float/fade/scroll animation. Keep the app feeling native and stable. */
+.bar-card,
+.ghost-button,
+.primary-button,
+.text-button,
+.select-chip,
+.reaction-chip,
+.bottom-nav a,
+input,
+textarea {
+  transition: none !important;
+  animation: none !important;
+}
+
 @media (max-width: 900px) {
   .detail-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
   .app-shell {
-    padding-top: calc(env(safe-area-inset-top) + 6px);
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-top: max(60px, calc(env(safe-area-inset-top) + 14px));
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
+  .page-shell { width: 100%; }
   .home-stack { gap: 14px; }
   .home-intro { padding-top: 0; }
   .hero-card,
   .detail-card,
-  .bar-card,
-  .auth-panel { border-radius: 17px; }
-  .hero-card { padding: 19px 15px; }
+  .bar-card { border-radius: 17px; }
+  .hero-card { padding: 19px 16px; }
   .bar-card { padding: 15px; }
   .home-stack > div { padding: 18px !important; }
   .home-stack > div:nth-child(2) > div:nth-child(2) { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; }
   .home-stack > div:nth-child(3) { grid-template-columns: 1fr !important; }
+
+  .auth-shell {
+    padding-top: max(58px, calc(env(safe-area-inset-top) + 12px));
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .auth-logo-clean { width: min(190px, 55vw); }
+  .auth-brand { margin-bottom: 22px; }
+  .auth-heading { margin-bottom: 20px; }
+  .auth-heading h1 { font-size: clamp(2rem, 10vw, 2.7rem); }
 }
