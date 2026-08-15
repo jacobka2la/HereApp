@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { BarsIcon, FriendsIcon, ProfileIcon } from './AppIcons';
 
 export default function Layout({ children }) {
   const location = useLocation();
@@ -7,28 +8,23 @@ export default function Layout({ children }) {
   const isFriends = location.pathname === '/friends';
   const isProfile = location.pathname === '/profile';
 
-  const navItemStyle = (active) => ({
-    flex: 1,
-    textAlign: 'center',
-    textDecoration: 'none',
-    padding: '12px 8px',
-    borderRadius: '14px',
-    fontWeight: 800,
-    fontSize: '0.95rem',
-    letterSpacing: '-0.01em',
-    color: active ? '#07130b' : 'rgba(239,255,244,0.72)',
-    background: active ? '#5BFF8A' : 'transparent',
-    transition: 'background 0.15s ease, color 0.15s ease',
-  });
+  const navItems = [
+    { to: '/', label: 'Bars', active: isBars, Icon: BarsIcon },
+    { to: '/friends', label: 'Friends', active: isFriends, Icon: FriendsIcon },
+    { to: '/profile', label: 'Profile', active: isProfile, Icon: ProfileIcon },
+  ];
 
   return (
     <div className="app-shell">
       <main className="page-shell">{children}</main>
 
-      <nav className="bottom-nav" aria-label="Primary navigation">
-        <Link to="/" style={navItemStyle(isBars)}>Bars</Link>
-        <Link to="/friends" style={navItemStyle(isFriends)}>Friends</Link>
-        <Link to="/profile" style={navItemStyle(isProfile)}>Profile</Link>
+      <nav className="bottom-nav" aria-label="Primary Navigation">
+        {navItems.map(({ to, label, active, Icon }) => (
+          <Link key={to} to={to} className={`bottom-nav-item ${active ? 'bottom-nav-item-active' : ''}`}>
+            <Icon size={19} />
+            <span>{label}</span>
+          </Link>
+        ))}
       </nav>
     </div>
   );
