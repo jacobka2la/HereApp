@@ -21,6 +21,12 @@ export default function AvatarPickerPage() {
   }
   if (sessionStorage.getItem(AVATAR_SIGNUP_FLAG) !== '1') return <Navigate to="/" replace />;
 
+  const selectAvatar = (avatarId) => {
+    if (saving) return;
+    setSelected(avatarId);
+    setError('');
+  };
+
   const confirmAvatar = async () => {
     if (!selected || saving) return;
 
@@ -37,7 +43,7 @@ export default function AvatarPickerPage() {
         navigate('/', { replace: true });
         return;
       }
-      setError('Could not save your avatar. Try again.');
+      setError('Could Not Save Your Avatar. Try Again.');
     } finally {
       setSaving(false);
     }
@@ -48,39 +54,47 @@ export default function AvatarPickerPage() {
       <div className="avatar-picker-inner">
         <div className="avatar-picker-heading">
           <h1>Pick Your Avatar</h1>
-          <p>Select one below, then tap Confirm Avatar. Once confirmed, it’s yours for good.</p>
+          <p>Tap One To Preview Your Choice. Nothing Is Saved Until You Hit Confirm.</p>
         </div>
 
         <div className="avatar-grid">
-          {avatars.map((avatar) => (
-            <button
-              key={avatar.id}
-              className={`avatar-option ${selected === avatar.id ? 'avatar-option-selected' : ''}`}
-              onClick={() => {
-                setSelected(avatar.id);
-                setError('');
-              }}
-              type="button"
-              aria-label={avatar.alt}
-              aria-pressed={selected === avatar.id}
-            >
-              <img className="avatar-art" src={avatar.image} alt="" />
-              <span className="avatar-select-dot" />
-              <span className="avatar-select-label">{selected === avatar.id ? 'Selected' : 'Select'}</span>
-            </button>
-          ))}
+          {avatars.map((avatar) => {
+            const isSelected = selected === avatar.id;
+            return (
+              <button
+                key={avatar.id}
+                className={`avatar-option ${isSelected ? 'avatar-option-selected' : ''}`}
+                onClick={() => selectAvatar(avatar.id)}
+                type="button"
+                aria-label={avatar.alt}
+                aria-pressed={isSelected}
+              >
+                <img className="avatar-art" src={avatar.image} alt="" />
+                <div className="avatar-choice-footer">
+                  <span className="avatar-select-dot" />
+                  <span className="avatar-select-label">{isSelected ? 'Selected' : 'Select'}</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {error ? <div className="error-banner">{error}</div> : null}
 
-        <button
-          className="primary-button avatar-continue"
-          type="button"
-          disabled={!selected || saving}
-          onClick={confirmAvatar}
-        >
-          {saving ? 'Saving…' : 'Confirm Avatar'}
-        </button>
+        <div className={`avatar-confirm-dock ${selected ? 'avatar-confirm-dock-visible' : ''}`}>
+          <div className="avatar-confirm-copy">
+            <strong>{selected ? 'Avatar Selected' : 'Choose An Avatar'}</strong>
+            <span>{selected ? 'Tap Confirm To Lock It In.' : 'Pick One Above First.'}</span>
+          </div>
+          <button
+            className="primary-button avatar-continue"
+            type="button"
+            disabled={!selected || saving}
+            onClick={confirmAvatar}
+          >
+            {saving ? 'Saving…' : 'Confirm Avatar'}
+          </button>
+        </div>
       </div>
     </main>
   );
