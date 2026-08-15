@@ -10,18 +10,17 @@ export const coverRanges = ['Free', '$1–5', '$6–10', '$11–15', '$16–20',
 export const reactionOptions = ['🔥', '👀', '🍻'];
 
 export const msuBars = [
-  { id: 'ricks', name: "Rick's", neighborhood: 'East Lansing' },
-  { id: 'the-riv', name: 'The Riv', neighborhood: 'East Lansing' },
-  { id: 'harpers', name: "Harper's", neighborhood: 'East Lansing' },
-  { id: 'fieldhouse', name: 'FieldHouse', neighborhood: 'East Lansing' },
-  { id: 'lou-and-harrys', name: "Lou and Harry's", neighborhood: 'East Lansing' },
-  { id: 'mash', name: 'Mash', neighborhood: 'East Lansing' },
-  { id: 'landshark', name: 'LandShark', neighborhood: 'East Lansing' },
-  { id: 'pt-omalley', name: "P.T. O'Malley's", neighborhood: 'East Lansing' },
-  { id: 'dublin-square', name: 'Dublin Square', neighborhood: 'East Lansing' },
-  { id: 'grewal-hall', name: 'Grewal Hall', neighborhood: 'East Lansing' },
-  { id: 'pizza-house', name: 'Pizza House', neighborhood: 'East Lansing' },
-  { id: 'the-green-door', name: 'The Green Door', neighborhood: 'East Lansing' },
+  { id: 'ricks', name: "Rick's", neighborhood: 'East Lansing', image: '/bar-images/ricks.jpeg' },
+  { id: 'the-riv', name: 'The Riv', neighborhood: 'East Lansing', image: '/bar-images/the-riv.jpg' },
+  { id: 'harpers', name: "Harper's", neighborhood: 'East Lansing', image: '/bar-images/harpers.jpeg' },
+  { id: 'fieldhouse', name: 'FieldHouse', neighborhood: 'East Lansing', image: '/bar-images/fieldhouse.webp' },
+  { id: 'lou-and-harrys', name: "Lou and Harry's", neighborhood: 'East Lansing', image: '/bar-images/lou-and-harrys.jpeg' },
+  { id: 'mash', name: 'Mash', neighborhood: 'East Lansing', image: '/bar-images/mash.webp' },
+  { id: 'landshark', name: 'LandShark', neighborhood: 'East Lansing', image: '/bar-images/landshark.jpeg' },
+  { id: 'pt-omalley', name: "P.T. O'Malley's", neighborhood: 'East Lansing', image: '/bar-images/pt-omalleys.jpeg' },
+  { id: 'dublin-square', name: 'Dublin Square', neighborhood: 'East Lansing', image: '/bar-images/dublin-square.webp' },
+  { id: 'grewal-hall', name: 'Grewal Hall', neighborhood: 'East Lansing', image: '/bar-images/grewal-hall.webp' },
+  { id: 'the-green-door', name: 'The Green Door', neighborhood: 'East Lansing', image: '/bar-images/the-green-door.jpeg' },
 ];
 
 export function getBarMeta(barId) {
