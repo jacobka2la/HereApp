@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import FriendsPage from './pages/FriendsPage';
 import HomeTabPage from './pages/HomeTabPage';
 import BarDetailPage from './pages/BarDetailPage';
+import LegalPage from './pages/LegalPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function ScrollToTop() {
@@ -24,6 +25,10 @@ export default function App() {
 
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/terms" element={<LegalPage />} />
+        <Route path="/privacy" element={<LegalPage />} />
+        <Route path="/community-rules" element={<LegalPage />} />
+        <Route path="/support" element={<LegalPage />} />
 
         <Route
           path="/"
