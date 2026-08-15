@@ -60,6 +60,7 @@ function FriendAvatar({ avatarId, username, size = 58 }) {
           height: size,
           borderRadius: 16,
           objectFit: 'cover',
+          objectPosition: 'center top',
           flexShrink: 0,
           border: '1px solid rgba(83,240,124,.20)',
         }}
