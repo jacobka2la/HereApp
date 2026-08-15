@@ -24,23 +24,12 @@ import {
 const vibeCooldownMs = 5 * 60 * 1000;
 const coverCooldownMs = 10 * 60 * 1000;
 const lineCooldownMs = 5 * 60 * 1000;
-const commentCooldownMs = 60 * 1000;
+const commentCooldownMs = 5 * 60 * 1000;
 
 const lineOptions = ['No line', 'Short line', 'Long line'];
 
 const bannedWords = [
-  'fuck',
-  'shit',
-  'bitch',
-  'asshole',
-  'slut',
-  'whore',
-  'nigga',
-  'nigger',
-  'fag',
-  'retard',
-  'kill yourself',
-  'rape',
+  'fuck', 'shit', 'bitch', 'asshole', 'slut', 'whore', 'nigga', 'nigger', 'fag', 'retard', 'kill yourself', 'rape',
 ];
 
 function containsBannedWords(text) {
@@ -50,20 +39,12 @@ function containsBannedWords(text) {
 
 function summarizeLineReports(reports) {
   if (!reports.length) return null;
-
   const counts = reports.reduce((acc, item) => {
     acc[item.lineLength] = (acc[item.lineLength] || 0) + 1;
     return acc;
   }, {});
-
   const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-
-  return winner
-    ? {
-        label: winner[0],
-        count: winner[1],
-      }
-    : null;
+  return winner ? { label: winner[0], count: winner[1] } : null;
 }
 
 function formatDuration(ms) {
@@ -75,43 +56,25 @@ function formatDuration(ms) {
 
 function getCheckInErrorMessage(error, targetBarId) {
   const raw = error?.message || '';
-
-  if (raw === 'ALREADY_CHECKED_IN') {
-    return `You're already checked into ${getBarMeta(targetBarId)?.name || 'this bar'}.`;
-  }
-
+  if (raw === 'ALREADY_CHECKED_IN') return `You're already checked into ${getBarMeta(targetBarId)?.name || 'this bar'}.`;
   let match = raw.match(/^ACTIVE_AT_OTHER_BAR_(.+)$/);
   if (match) {
     const currentBarName = getBarMeta(match[1])?.name || match[1];
     return `You're still checked into ${currentBarName}. Leave that bar before checking in somewhere else.`;
   }
-
   match = raw.match(/^SAME_BAR_COOLDOWN_(\d+)$/);
-  if (match) {
-    return `You just left ${getBarMeta(targetBarId)?.name || 'this bar'}. You can check back into this same bar in ${formatDuration(Number(match[1]))}.`;
-  }
-
+  if (match) return `You just left ${getBarMeta(targetBarId)?.name || 'this bar'}. You can check back into this same bar in ${formatDuration(Number(match[1]))}.`;
   match = raw.match(/^OTHER_BAR_COOLDOWN_(\d+)$/);
-  if (match) {
-    return `You just left another bar. You can check into a different bar in ${formatDuration(Number(match[1]))}.`;
-  }
-
+  if (match) return `You just left another bar. You can check into a different bar in ${formatDuration(Number(match[1]))}.`;
   match = raw.match(/^CHECKIN_COOLDOWN_(\d+)$/);
-  if (match) {
-    return `You just left a bar. Try checking in again in ${formatDuration(Number(match[1]))}.`;
-  }
-
+  if (match) return `You just left a bar. Try checking in again in ${formatDuration(Number(match[1]))}.`;
   match = raw.match(/^CHECKIN_LOCK_SAME_BAR_(?:[^_]+_)?(\d+)$/);
-  if (match) {
-    return `You're already checked into ${getBarMeta(targetBarId)?.name || 'this bar'}.`;
-  }
-
+  if (match) return `You're already checked into ${getBarMeta(targetBarId)?.name || 'this bar'}.`;
   match = raw.match(/^CHECKIN_LOCK_ACTIVE_([^_]+)_(\d+)$/);
   if (match) {
     const currentBarName = getBarMeta(match[1])?.name || match[1];
     return `You're still checked into ${currentBarName}. Leave that bar before checking in somewhere else.`;
   }
-
   return raw && !raw.includes('_LOCK_') ? raw : 'Could not check into the bar right now.';
 }
 
@@ -147,36 +110,19 @@ export default function BarDetailPage() {
       subscribeToTodayCollection('comments', setComments),
       subscribeToTodayCollection('commentReactions', setReactions),
     ];
-
     if (firebaseUser?.uid) {
-      const unsubHidden = subscribeToHiddenCommentsForUser(
-        firebaseUser.uid,
-        setHiddenComments
-      );
+      const unsubHidden = subscribeToHiddenCommentsForUser(firebaseUser.uid, setHiddenComments);
       unsubscribers.push(unsubHidden);
     } else {
       setHiddenComments([]);
     }
-
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [firebaseUser?.uid]);
 
   const stats = useMemo(() => {
-    const baseStats = buildBarStats(
-      barId,
-      checkins,
-      vibes,
-      coverReports,
-      comments,
-      reactions
-    );
-
+    const baseStats = buildBarStats(barId, checkins, vibes, coverReports, comments, reactions);
     const relevantLineReports = lineReports.filter((item) => item.barId === barId);
-
-    return {
-      ...baseStats,
-      lineSummary: summarizeLineReports(relevantLineReports),
-    };
+    return { ...baseStats, lineSummary: summarizeLineReports(relevantLineReports) };
   }, [barId, checkins, vibes, coverReports, lineReports, comments, reactions]);
 
   const myVibe = vibes.find((item) => item.uid === firebaseUser?.uid && item.barId === barId)?.vibe;
@@ -185,49 +131,26 @@ export default function BarDetailPage() {
   const myCheckin = checkins.find((item) => item.uid === firebaseUser?.uid && item.active);
   const isCheckedIntoThisBar = myCheckin?.barId === barId && myCheckin?.active;
 
-  const myCommentReactions = Object.fromEntries(
-    reactions
-      .filter((item) => item.uid === firebaseUser?.uid)
-      .map((item) => [item.commentId, item.emoji])
-  );
+  const myCommentReactions = Object.fromEntries(reactions.filter((item) => item.uid === firebaseUser?.uid).map((item) => [item.commentId, item.emoji]));
 
   const visibleComments = useMemo(() => {
     if (!firebaseUser?.uid) return stats.comments;
-
     const blockedUsers = profile?.blockedUsers || [];
     const hiddenSet = new Set(hiddenComments.map((item) => item.commentId));
-
-    return stats.comments
-      .map((comment) => {
-        if (comment.hidden === true) return null;
-        if (blockedUsers.includes(comment.uid)) return null;
-
-        if (hiddenSet.has(comment.id)) {
-          return {
-            ...comment,
-            text: 'This Comment Has Been Reported',
-            isHiddenForUser: true,
-          };
-        }
-
-        return comment;
-      })
-      .filter(Boolean);
+    return stats.comments.map((comment) => {
+      if (comment.hidden === true || blockedUsers.includes(comment.uid)) return null;
+      if (hiddenSet.has(comment.id)) return { ...comment, text: 'This Comment Has Been Reported', isHiddenForUser: true };
+      return comment;
+    }).filter(Boolean);
   }, [stats.comments, firebaseUser?.uid, profile?.blockedUsers, hiddenComments]);
 
   const handleCheckIn = async () => {
     if (checkInFlightRef.current || checkingIn || leaving || isCheckedIntoThisBar) return;
-
     checkInFlightRef.current = true;
     setCheckingIn(true);
     setFeedback('');
-
     try {
-      await upsertCheckIn({
-        uid: firebaseUser.uid,
-        username: profile?.displayUsername || profile?.username,
-        barId,
-      });
+      await upsertCheckIn({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId });
       setFeedback(`You're checked into ${bar.name}. Your visit was added to your stats.`);
     } catch (error) {
       setFeedback(getCheckInErrorMessage(error, barId));
@@ -241,12 +164,9 @@ export default function BarDetailPage() {
     if (leaving) return;
     setLeaving(true);
     setFeedback('');
-
     try {
       await leaveBar(firebaseUser.uid);
-      setCheckins((current) => current.map((item) => (
-        item.uid === firebaseUser.uid && item.active ? { ...item, active: false } : item
-      )));
+      setCheckins((current) => current.map((item) => item.uid === firebaseUser.uid && item.active ? { ...item, active: false } : item));
       setFeedback(`You left ${bar.name}. You can check into another bar in 5:00, or come back here in 20:00.`);
     } catch (err) {
       setFeedback(getLeaveErrorMessage(err));
@@ -260,19 +180,15 @@ export default function BarDetailPage() {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
         setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to update its vibe.`);
-      } else {
-        setFeedback('Check into this bar first, then you can update the vibe.');
-      }
+      } else setFeedback('Check into this bar first, then you can update the vibe.');
       return;
     }
-
     const lastVote = vibes.find((item) => item.uid === firebaseUser.uid && item.barId === barId);
     if (lastVote && Date.now() - lastVote.createdAtMillis < vibeCooldownMs) {
       const remainingMs = vibeCooldownMs - (Date.now() - lastVote.createdAtMillis);
       setFeedback(`You just updated the vibe for ${bar.name}. You can change it again in ${formatDuration(remainingMs)}.`);
       return;
     }
-
     await updateVibe({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId, vibe: value });
     setFeedback(`You updated the vibe for ${bar.name}.`);
   };
@@ -282,19 +198,15 @@ export default function BarDetailPage() {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
         setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to update its cover.`);
-      } else {
-        setFeedback('Check into this bar first, then you can report cover.');
-      }
+      } else setFeedback('Check into this bar first, then you can report cover.');
       return;
     }
-
     const lastCover = coverReports.find((item) => item.uid === firebaseUser.uid && item.barId === barId);
     if (lastCover && Date.now() - lastCover.createdAtMillis < coverCooldownMs) {
       const remainingMs = coverCooldownMs - (Date.now() - lastCover.createdAtMillis);
       setFeedback(`You already reported cover for ${bar.name}. You can update it again in ${formatDuration(remainingMs)}.`);
       return;
     }
-
     await updateCover({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId, range });
     setFeedback(`You updated the cover for ${bar.name}.`);
   };
@@ -304,82 +216,61 @@ export default function BarDetailPage() {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
         setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to update its line.`);
-      } else {
-        setFeedback('Check into this bar first, then you can report the line length.');
-      }
+      } else setFeedback('Check into this bar first, then you can report the line length.');
       return;
     }
-
     const lastLine = lineReports.find((item) => item.uid === firebaseUser.uid && item.barId === barId);
     if (lastLine && Date.now() - lastLine.createdAtMillis < lineCooldownMs) {
       const remainingMs = lineCooldownMs - (Date.now() - lastLine.createdAtMillis);
       setFeedback(`You already reported the line for ${bar.name}. You can update it again in ${formatDuration(remainingMs)}.`);
       return;
     }
-
     await updateLineLength({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId, lineLength: value });
     setFeedback(`You updated the line length for ${bar.name}.`);
   };
 
   const handleComment = async (event) => {
     event.preventDefault();
-
     if (!isCheckedIntoThisBar) {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
         setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to comment there.`);
-      } else {
-        setFeedback('Check into this bar first, then you can post a comment.');
-      }
+      } else setFeedback('Check into this bar first, then you can post a comment.');
       return;
     }
-
     const cleanText = commentText.trim();
     if (!cleanText) return;
-
     if (containsBannedWords(cleanText)) {
       setFeedback('Please keep comments respectful.');
       return;
     }
-
-    const latestMine = [...comments]
-      .filter((item) => item.uid === firebaseUser.uid && item.barId === barId)
-      .sort((a, b) => b.createdAtMillis - a.createdAtMillis)[0];
-
+    const latestMine = [...comments].filter((item) => item.uid === firebaseUser.uid && item.barId === barId).sort((a, b) => b.createdAtMillis - a.createdAtMillis)[0];
     if (latestMine && Date.now() - latestMine.createdAtMillis < commentCooldownMs) {
       const remainingMs = commentCooldownMs - (Date.now() - latestMine.createdAtMillis);
       setFeedback(`You just commented at ${bar.name}. You can post again in ${formatDuration(remainingMs)}.`);
       return;
     }
-
     await addComment({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, avatarId: profile?.avatarId || '', barId, text: cleanText.slice(0, 180) });
     setCommentText('');
     setFeedback(`Your comment was posted for ${bar.name}.`);
   };
 
-  const handleReaction = async (commentId, emoji) => {
-    await toggleReaction({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, commentId, emoji });
-  };
+  const handleReaction = async (commentId, emoji) => toggleReaction({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, commentId, emoji });
 
   const handleReportComment = async (comment) => {
     if (comment.isHiddenForUser) return;
     try {
       await reportComment({ reporterUid: firebaseUser.uid, reporterUsername: profile?.displayUsername || profile?.username || '', commentId: comment.id, commentOwnerUid: comment.uid || '', commentOwnerUsername: comment.username || '', commentText: comment.text || '', barId, barName: bar?.name || '' });
       setFeedback('Comment reported.');
-    } catch (error) {
+    } catch {
       setFeedback('Could not report comment right now.');
     }
   };
 
   const handleDeleteComment = async (comment) => {
-    const confirmed = window.confirm('Delete this comment?');
-    if (!confirmed) return;
-    try {
-      await deleteCommentById(comment.id);
-      setFeedback('Comment deleted.');
-    } catch (error) {
-      setFeedback('Could not delete comment right now.');
-    }
+    if (!window.confirm('Delete this comment?')) return;
+    try { await deleteCommentById(comment.id); setFeedback('Comment deleted.'); }
+    catch { setFeedback('Could not delete comment right now.'); }
   };
 
   const handleBlockUser = async (comment) => {
@@ -390,50 +281,32 @@ export default function BarDetailPage() {
       if (existingBlocked.includes(comment.uid)) { setFeedback('User already blocked.'); return; }
       await blockUser({ blockerUid: firebaseUser.uid, blockedUid: comment.uid });
       setFeedback('User blocked.');
-    } catch (error) {
-      setFeedback('Could not block user right now.');
-    }
+    } catch { setFeedback('Could not block user right now.'); }
   };
 
-  if (!bar) {
-    return <Layout><div className="empty-state">That bar wasn't found.</div></Layout>;
-  }
+  if (!bar) return <Layout><div className="empty-state">That bar wasn't found.</div></Layout>;
 
   return (
     <Layout>
       <div className="bar-detail-page">
         <Link to="/" className="bar-back-button" aria-label="Back to bars">← Back To Bars</Link>
-
         <section className="detail-grid">
           <div className="detail-primary">
             <div className="detail-card detail-hero">
-              {bar.image ? (
-                <div className="detail-hero-image-wrap">
-                  <img className="detail-hero-image" src={bar.image} alt={`${bar.name} bar`} />
-                  <div className="detail-hero-image-shade" />
-                </div>
-              ) : null}
-
+              {bar.image ? <div className="detail-hero-image-wrap"><img className="detail-hero-image" src={bar.image} alt={`${bar.name} bar`} /><div className="detail-hero-image-shade" /></div> : null}
               <div className="detail-hero-content">
                 <span className="hero-kicker">{bar.neighborhood}</span>
                 <h1>{bar.name}</h1>
                 <p className="detail-vibe">{stats.currentVibeLabel}</p>
-
                 <div className="hero-stats hero-stats-tight detail-stat-grid">
                   <div><span className="label">Checked In</span><strong>{stats.count}</strong></div>
                   <div><span className="label">Cover</span><strong>{stats.coverSummary ? `${stats.coverSummary.label} · ${stats.coverSummary.count} Reports` : 'No Reports Yet'}</strong></div>
                   <div><span className="label">Line</span><strong>{stats.lineSummary ? `${stats.lineSummary.label} · ${stats.lineSummary.count} Reports` : 'No Reports Yet'}</strong></div>
                   <div><span className="label">Your Status</span><strong>{isCheckedIntoThisBar ? 'You Are Here' : 'Not Checked In'}</strong></div>
                 </div>
-
                 <div className="action-stack detail-checkin-actions">
-                  {isCheckedIntoThisBar ? (
-                    <button className="primary-button detail-checkin-button" onClick={handleLeaveBar} disabled={leaving}>{leaving ? 'Leaving…' : 'Leave Bar'}</button>
-                  ) : (
-                    <button className="primary-button detail-checkin-button" onClick={handleCheckIn} disabled={checkingIn || leaving}>{checkingIn ? 'Checking In…' : 'I’m Here'}</button>
-                  )}
+                  {isCheckedIntoThisBar ? <button className="primary-button detail-checkin-button" onClick={handleLeaveBar} disabled={leaving}>{leaving ? 'Leaving…' : 'Leave Bar'}</button> : <button className="primary-button detail-checkin-button" onClick={handleCheckIn} disabled={checkingIn || leaving}>{checkingIn ? 'Checking In…' : 'I’m Here'}</button>}
                 </div>
-
                 <p className="detail-checkin-note">Check in when you arrive so the live crowd count stays accurate. After leaving, wait 5 minutes before checking into a different bar, or 20 minutes before checking back into the same bar.</p>
                 {feedback ? <div className="info-banner detail-feedback">{feedback}</div> : null}
               </div>
