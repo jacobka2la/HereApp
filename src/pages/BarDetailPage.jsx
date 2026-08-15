@@ -106,6 +106,16 @@ function parseLegacyLockError(error) {
     };
   }
 
+  match = raw.match(/^CHECKIN_LOCK_SAME_BAR_(\d+)$/);
+  if (match) {
+    const remainingMs = Number(match[1]);
+    return {
+      type: 'same_bar',
+      remainingMs,
+      remainingLabel: formatDuration(remainingMs),
+    };
+  }
+
   match = raw.match(/^CHECKIN_LOCK_ACTIVE_([^_]+)_(\d+)$/);
   if (match) {
     const [, currentBarId, remainingMsRaw] = match;
@@ -130,7 +140,7 @@ function getCheckInErrorMessage(error, targetBarId) {
   }
 
   if (error?.code === 'CHECKIN_LOCK_SAME_BAR') {
-    return `You're already checked into ${error.currentBarName}. You can leave in ${error.remainingLabel} minutes.`;
+    return `You're already checked into ${error.currentBarName || getBarMeta(targetBarId)?.name || 'this bar'}. You can leave in ${error.remainingLabel} minutes.`;
   }
 
   const legacy = parseLegacyLockError(error);
@@ -140,7 +150,12 @@ function getCheckInErrorMessage(error, targetBarId) {
   }
 
   if (legacy?.type === 'same_bar') {
-    return `You're already checked into ${legacy.currentBarName}. You can leave in ${legacy.remainingLabel} minutes.`;
+    const currentBarName = legacy.currentBarName || getBarMeta(targetBarId)?.name || 'this bar';
+    return `You're already checked into ${currentBarName}. You can leave in ${legacy.remainingLabel} minutes.`;
+  }
+
+  if ((error?.message || '').startsWith('CHECKIN_LOCK_')) {
+    return 'Your current check-in is still locked for a few more minutes. Try again shortly.';
   }
 
   return error?.message || 'Could not check into the bar right now.';
@@ -154,6 +169,10 @@ function getLeaveErrorMessage(error) {
   const legacy = parseLegacyLockError(error);
   if (legacy?.type === 'leave') {
     return `You're still checked into ${legacy.currentBarName}. You can leave in ${legacy.remainingLabel} minutes.`;
+  }
+
+  if ((error?.message || '').startsWith('LEAVE_LOCK_')) {
+    return 'Your check-in is still locked for a few more minutes. Try leaving again shortly.';
   }
 
   return error?.message || 'Could not leave the bar. Try again.';
@@ -515,56 +534,66 @@ export default function BarDetailPage() {
         <section className="detail-grid">
           <div className="detail-primary">
             <div className="detail-card detail-hero">
-              <span className="hero-kicker">{bar.neighborhood}</span>
-              <h1>{bar.name}</h1>
-              <p className="detail-vibe">{stats.currentVibeLabel}</p>
+              {bar.image ? (
+                <div className="detail-hero-image-wrap">
+                  <img className="detail-hero-image" src={bar.image} alt={`${bar.name} bar`} />
+                  <div className="detail-hero-image-shade" />
+                </div>
+              ) : null}
 
-              <div className="hero-stats hero-stats-tight">
-                <div><span className="label">Checked In</span><strong>{stats.count}</strong></div>
-                <div><span className="label">Cover</span><strong>{stats.coverSummary ? `${stats.coverSummary.label} · ${stats.coverSummary.count} Reports` : 'No Reports Yet'}</strong></div>
-                <div><span className="label">Line</span><strong>{stats.lineSummary ? `${stats.lineSummary.label} · ${stats.lineSummary.count} Reports` : 'No Reports Yet'}</strong></div>
-                <div><span className="label">Your Status</span><strong>{myCheckin?.barId === barId ? 'You Are Here' : 'Not Checked In'}</strong></div>
+              <div className="detail-hero-content">
+                <span className="hero-kicker">{bar.neighborhood}</span>
+                <h1>{bar.name}</h1>
+                <p className="detail-vibe">{stats.currentVibeLabel}</p>
+
+                <div className="hero-stats hero-stats-tight detail-stat-grid">
+                  <div><span className="label">Checked In</span><strong>{stats.count}</strong></div>
+                  <div><span className="label">Cover</span><strong>{stats.coverSummary ? `${stats.coverSummary.label} · ${stats.coverSummary.count} Reports` : 'No Reports Yet'}</strong></div>
+                  <div><span className="label">Line</span><strong>{stats.lineSummary ? `${stats.lineSummary.label} · ${stats.lineSummary.count} Reports` : 'No Reports Yet'}</strong></div>
+                  <div><span className="label">Your Status</span><strong>{myCheckin?.barId === barId ? 'You Are Here' : 'Not Checked In'}</strong></div>
+                </div>
+
+                <div className="action-stack detail-checkin-actions">
+                  {isCheckedIntoThisBar ? (
+                    <button className="primary-button detail-checkin-button" onClick={handleLeaveBar}>Leave Bar</button>
+                  ) : (
+                    <button className="primary-button detail-checkin-button" onClick={handleCheckIn} disabled={checkingIn}>
+                      {checkingIn ? 'Checking In…' : 'I’m Here'}
+                    </button>
+                  )}
+                </div>
+
+                <p className="detail-checkin-note">Check in when you arrive so the live crowd count stays accurate.</p>
+                {feedback ? <div className="info-banner detail-feedback">{feedback}</div> : null}
               </div>
-
-              <div className="action-stack">
-                {isCheckedIntoThisBar ? (
-                  <button className="primary-button" onClick={handleLeaveBar}>Leave Bar</button>
-                ) : (
-                  <button className="primary-button" onClick={handleCheckIn} disabled={checkingIn}>
-                    {checkingIn ? 'Checking In…' : 'I’m Here'}
-                  </button>
-                )}
-              </div>
-
-              {feedback ? <div className="info-banner">{feedback}</div> : null}
             </div>
 
-            <div className="detail-card">
+            <div className="detail-card detail-section-card">
               <div className="section-headline small-gap"><div><h2>Update The Vibe</h2><p>One vibe per user at a time. New vote replaces your old one.</p></div></div>
-              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.` : 'Check into this bar first to update the vibe.'}</p> : null}
+              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're checked in at ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}. Open that bar to update its vibe.` : `Check into ${bar.name} first to update the vibe.`}</p> : <p className="bar-lock-note bar-lock-note-active">What's the vibe inside {bar.name}?</p>}
               <div className="chip-grid">{vibeOptions.map((option) => <button key={option.value} className={`select-chip ${myVibe === option.value ? 'select-chip-active' : ''}`} onClick={() => handleVibe(option.value)} disabled={!isCheckedIntoThisBar}>{option.label}</button>)}</div>
             </div>
 
-            <div className="detail-card">
+            <div className="detail-card detail-section-card">
               <div className="section-headline small-gap"><div><h2>Report Cover</h2><p>Pick the closest range. The app shows the most reported one.</p></div></div>
-              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.` : 'Check into this bar first to report cover.'}</p> : null}
+              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're checked in at ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}. Open that bar to report cover.` : `Check into ${bar.name} first to report cover.`}</p> : null}
               <div className="chip-grid">{coverRanges.map((range) => <button key={range} className={`select-chip ${myCover === range ? 'select-chip-active' : ''}`} onClick={() => handleCover(range)} disabled={!isCheckedIntoThisBar}>{range}</button>)}</div>
             </div>
 
-            <div className="detail-card">
-              <div className="section-headline small-gap"><div><h2>Report Line Length</h2><p>This is the useful stuff people actually care about before they pull up.</p></div></div>
-              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're currently checked into ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}.` : 'Check into this bar first to report the line.'}</p> : null}
+            <div className="detail-card detail-section-card">
+              <div className="section-headline small-gap"><div><h2>Report Line Length</h2><p>Help people know what the wait looks like before they pull up.</p></div></div>
+              {!isCheckedIntoThisBar ? <p className="bar-lock-note">{myCheckin?.barId ? `You're checked in at ${getBarMeta(myCheckin.barId)?.name || myCheckin.barId}. Open that bar to report the line.` : `Check into ${bar.name} first to report the line.`}</p> : null}
               <div className="chip-grid">{lineOptions.map((option) => <button key={option} className={`select-chip ${myLine === option ? 'select-chip-active' : ''}`} onClick={() => handleLineLength(option)} disabled={!isCheckedIntoThisBar}>{option}</button>)}</div>
             </div>
 
-            <div className="detail-card">
+            <div className="detail-card detail-section-card">
               <div className="section-headline small-gap"><div><h2>Crowd Trend</h2><p>Quick view of check-in activity over the last hour.</p></div></div>
               <div className="chart-wrap"><ResponsiveContainer width="100%" height={240}><AreaChart data={stats.trendSeries}><defs><linearGradient id="crowdFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#5BFF8A" stopOpacity={0.45} /><stop offset="100%" stopColor="#5BFF8A" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="label" tick={{ fill: '#A8B6AE' }} axisLine={false} tickLine={false} /><YAxis tick={{ fill: '#A8B6AE' }} axisLine={false} tickLine={false} allowDecimals={false} /><Tooltip contentStyle={{ background: '#0E1511', border: '1px solid #213128', borderRadius: 14 }} /><Area type="monotone" dataKey="crowd" stroke="#5BFF8A" fill="url(#crowdFill)" strokeWidth={2.5} /></AreaChart></ResponsiveContainer></div>
             </div>
           </div>
 
           <aside className="detail-sidebar">
-            <div className="detail-card">
+            <div className="detail-card detail-section-card">
               <div className="section-headline small-gap"><div><h2>Comments</h2><p>Username only. Everything resets at 4AM Eastern. Tap “Report” on any comment that breaks community rules.</p></div></div>
               <form className="comment-form" onSubmit={handleComment}><textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Line's moving fast, DJ is solid, cover jumped..." maxLength={180} /><button className="primary-button" type="submit" disabled={!isCheckedIntoThisBar}>Post Comment</button></form>
               <div className="comment-stack">
