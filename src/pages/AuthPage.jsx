@@ -107,7 +107,7 @@ export default function AuthPage() {
                 onChange={(event) => setUsername(event.target.value)}
                 autoCapitalize="none"
                 autoCorrect="off"
-                placeholder="ex. jacob24"
+                placeholder=""
               />
             </label>
           ) : null}
@@ -131,20 +131,20 @@ export default function AuthPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete={isSignup ? 'new-password' : 'current-password'}
-              placeholder="Enter your password"
+              placeholder="Enter Your Password"
             />
           </label>
 
           {isSignup ? (
-            <div className="signup-requirements" aria-label="Account requirements">
+            <div className="signup-requirements" aria-label="Account Requirements">
               <div className="signup-requirements-title">Account Requirements</div>
               <div className="requirement-row">
                 <span className="requirement-dot" />
-                <span><strong>Username:</strong> 5–15 characters, letters/numbers/underscores only, with at least 1 number.</span>
+                <span><strong>Username:</strong> 5–15 Characters, Letters/Numbers/Underscores Only, With At Least 1 Number.</span>
               </div>
               <div className="requirement-row">
                 <span className="requirement-dot" />
-                <span><strong>Password:</strong> At least 8 characters.</span>
+                <span><strong>Password:</strong> At Least 8 Characters.</span>
               </div>
             </div>
           ) : null}
@@ -178,7 +178,7 @@ export default function AuthPage() {
         </button>
 
         <div className="auth-footer-links">
-          <Link to="/privacy">Privacy</Link>
+          <Link to="/privacy">Privacy Policy</Link>
           <Link to="/terms">Terms</Link>
           <Link to="/community-rules">Community Rules</Link>
           <Link to="/support">Support</Link>
