@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 
@@ -80,6 +80,8 @@ export default function AuthPage() {
       setSubmitting(false);
     }
   };
+
+  const legalLinkStyle = { color: '#78ffaa', fontWeight: 700 };
 
   return (
     <div className="auth-shell">
@@ -176,32 +178,17 @@ export default function AuthPage() {
                 />
                 <span style={{ fontSize: '0.95rem' }}>
                   I have read and agree to the{' '}
-                  <a
-                    href="/terms"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: '#78ffaa', fontWeight: 700 }}
-                  >
+                  <Link to="/terms" style={legalLinkStyle}>
                     Terms of Service
-                  </a>
+                  </Link>
                   ,{' '}
-                  <a
-                    href="/privacy"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: '#78ffaa', fontWeight: 700 }}
-                  >
+                  <Link to="/privacy" style={legalLinkStyle}>
                     Privacy Policy
-                  </a>
+                  </Link>
                   , and{' '}
-                  <a
-                    href="/community-rules"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: '#78ffaa', fontWeight: 700 }}
-                  >
+                  <Link to="/community-rules" style={legalLinkStyle}>
                     Community Rules
-                  </a>
+                  </Link>
                   .
                 </span>
               </label>
@@ -250,6 +237,13 @@ export default function AuthPage() {
             ? 'Already have an account? Log in'
             : 'Need an account? Sign up'}
         </button>
+
+        <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '14px', fontSize: '0.88rem' }}>
+          <Link to="/privacy" style={legalLinkStyle}>Privacy</Link>
+          <Link to="/terms" style={legalLinkStyle}>Terms</Link>
+          <Link to="/community-rules" style={legalLinkStyle}>Community Rules</Link>
+          <Link to="/support" style={legalLinkStyle}>Support</Link>
+        </div>
       </motion.section>
     </div>
   );
