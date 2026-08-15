@@ -73,109 +73,42 @@ function formatDuration(ms) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-function parseLegacyLockError(error) {
+function getCheckInErrorMessage(error, targetBarId) {
   const raw = error?.message || '';
 
-  let match = raw.match(/^LEAVE_LOCK_([^_]+)_(\d+)$/);
-  if (match) {
-    const [, currentBarId, remainingMsRaw] = match;
-    const remainingMs = Number(remainingMsRaw);
-    const currentBarName = getBarMeta(currentBarId)?.name || currentBarId;
-
-    return {
-      type: 'leave',
-      currentBarId,
-      currentBarName,
-      remainingMs,
-      remainingLabel: formatDuration(remainingMs),
-    };
+  if (raw === 'ALREADY_CHECKED_IN') {
+    return `You're already checked into ${getBarMeta(targetBarId)?.name || 'this bar'}.`;
   }
 
-  match = raw.match(/^CHECKIN_LOCK_SAME_BAR_([^_]+)_(\d+)$/);
+  let match = raw.match(/^ACTIVE_AT_OTHER_BAR_(.+)$/);
   if (match) {
-    const [, currentBarId, remainingMsRaw] = match;
-    const remainingMs = Number(remainingMsRaw);
-    const currentBarName = getBarMeta(currentBarId)?.name || currentBarId;
-
-    return {
-      type: 'same_bar',
-      currentBarId,
-      currentBarName,
-      remainingMs,
-      remainingLabel: formatDuration(remainingMs),
-    };
+    const currentBarName = getBarMeta(match[1])?.name || match[1];
+    return `You're still checked into ${currentBarName}. Leave that bar before checking in somewhere else.`;
   }
 
-  match = raw.match(/^CHECKIN_LOCK_SAME_BAR_(\d+)$/);
+  match = raw.match(/^CHECKIN_COOLDOWN_(\d+)$/);
   if (match) {
-    const remainingMs = Number(match[1]);
-    return {
-      type: 'same_bar',
-      remainingMs,
-      remainingLabel: formatDuration(remainingMs),
-    };
+    return `You just left a bar. You can check in again in ${formatDuration(Number(match[1]))}.`;
+  }
+
+  // Friendly fallback for older builds/data while devices update.
+  match = raw.match(/^CHECKIN_LOCK_SAME_BAR_(?:[^_]+_)?(\d+)$/);
+  if (match) {
+    return `You're already checked into ${getBarMeta(targetBarId)?.name || 'this bar'}.`;
   }
 
   match = raw.match(/^CHECKIN_LOCK_ACTIVE_([^_]+)_(\d+)$/);
   if (match) {
-    const [, currentBarId, remainingMsRaw] = match;
-    const remainingMs = Number(remainingMsRaw);
-    const currentBarName = getBarMeta(currentBarId)?.name || currentBarId;
-
-    return {
-      type: 'different_bar',
-      currentBarId,
-      currentBarName,
-      remainingMs,
-      remainingLabel: formatDuration(remainingMs),
-    };
+    const currentBarName = getBarMeta(match[1])?.name || match[1];
+    return `You're still checked into ${currentBarName}. Leave that bar before checking in somewhere else.`;
   }
 
-  return null;
-}
-
-function getCheckInErrorMessage(error, targetBarId) {
-  if (error?.code === 'CHECKIN_LOCK_DIFFERENT_BAR') {
-    return `You're still checked into ${error.currentBarName}. You can switch to ${error.targetBarName} in ${error.remainingLabel} minutes.`;
-  }
-
-  if (error?.code === 'CHECKIN_LOCK_SAME_BAR') {
-    return `You're already checked into ${error.currentBarName || getBarMeta(targetBarId)?.name || 'this bar'}. You can leave in ${error.remainingLabel} minutes.`;
-  }
-
-  const legacy = parseLegacyLockError(error);
-  if (legacy?.type === 'different_bar') {
-    const targetBarName = getBarMeta(targetBarId)?.name || targetBarId;
-    return `You're still checked into ${legacy.currentBarName}. You can switch to ${targetBarName} in ${legacy.remainingLabel} minutes.`;
-  }
-
-  if (legacy?.type === 'same_bar') {
-    const currentBarName = legacy.currentBarName || getBarMeta(targetBarId)?.name || 'this bar';
-    return `You're already checked into ${currentBarName}. You can leave in ${legacy.remainingLabel} minutes.`;
-  }
-
-  if ((error?.message || '').startsWith('CHECKIN_LOCK_')) {
-    return 'Your current check-in is still locked for a few more minutes. Try again shortly.';
-  }
-
-  return error?.message || 'Could not check into the bar right now.';
+  return raw && !raw.includes('_LOCK_') ? raw : 'Could not check into the bar right now.';
 }
 
 function getLeaveErrorMessage(error) {
-  if (error?.code === 'LEAVE_LOCK') {
-    return `You're still checked into ${error.currentBarName}. You can leave in ${error.remainingLabel} minutes.`;
-  }
-
-  const legacy = parseLegacyLockError(error);
-  if (legacy?.type === 'leave') {
-    return `You're still checked into ${legacy.currentBarName}. You can leave in ${legacy.remainingLabel} minutes.`;
-  }
-
-  if ((error?.message || '').startsWith('LEAVE_LOCK_')) {
-    return 'Your check-in is still locked for a few more minutes. Try leaving again shortly.';
-  }
-
-  return error?.message || 'Could not leave the bar. Try again.';
+  const raw = error?.message || '';
+  return raw && !raw.includes('_LOCK_') ? raw : 'Could not leave the bar. Try again.';
 }
 
 export default function BarDetailPage() {
@@ -194,6 +127,7 @@ export default function BarDetailPage() {
   const [commentText, setCommentText] = useState('');
   const [feedback, setFeedback] = useState('');
   const [checkingIn, setCheckingIn] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     const unsubscribers = [
@@ -273,10 +207,11 @@ export default function BarDetailPage() {
   }, [stats.comments, firebaseUser?.uid, profile?.blockedUsers, hiddenComments]);
 
   const handleCheckIn = async () => {
-    if (checkInFlightRef.current || checkingIn || isCheckedIntoThisBar) return;
+    if (checkInFlightRef.current || checkingIn || leaving || isCheckedIntoThisBar) return;
 
     checkInFlightRef.current = true;
     setCheckingIn(true);
+    setFeedback('');
 
     try {
       await upsertCheckIn({
@@ -284,7 +219,7 @@ export default function BarDetailPage() {
         username: profile?.displayUsername || profile?.username,
         barId,
       });
-      setFeedback(`You're now checked into ${bar.name}.`);
+      setFeedback(`You're checked into ${bar.name}. Your visit was added to your stats.`);
     } catch (error) {
       setFeedback(getCheckInErrorMessage(error, barId));
     } finally {
@@ -294,11 +229,21 @@ export default function BarDetailPage() {
   };
 
   const handleLeaveBar = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    setFeedback('');
+
     try {
       await leaveBar(firebaseUser.uid);
-      setFeedback(`You left ${bar.name}.`);
+      // Make the UI react immediately instead of waiting for the Firestore snapshot round trip.
+      setCheckins((current) => current.map((item) => (
+        item.uid === firebaseUser.uid && item.active ? { ...item, active: false } : item
+      )));
+      setFeedback(`You left ${bar.name}. You can check in again in 20:00.`);
     } catch (err) {
       setFeedback(getLeaveErrorMessage(err));
+    } finally {
+      setLeaving(false);
     }
   };
 
@@ -306,9 +251,7 @@ export default function BarDetailPage() {
     if (!isCheckedIntoThisBar) {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
-        setFeedback(
-          `You're checked into ${currentBarName}. Go to that bar's page if you want to update its vibe.`
-        );
+        setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to update its vibe.`);
       } else {
         setFeedback('Check into this bar first, then you can update the vibe.');
       }
@@ -318,19 +261,11 @@ export default function BarDetailPage() {
     const lastVote = vibes.find((item) => item.uid === firebaseUser.uid && item.barId === barId);
     if (lastVote && Date.now() - lastVote.createdAtMillis < vibeCooldownMs) {
       const remainingMs = vibeCooldownMs - (Date.now() - lastVote.createdAtMillis);
-      setFeedback(
-        `You just updated the vibe for ${bar.name}. You can change it again in ${formatDuration(remainingMs)}.`
-      );
+      setFeedback(`You just updated the vibe for ${bar.name}. You can change it again in ${formatDuration(remainingMs)}.`);
       return;
     }
 
-    await updateVibe({
-      uid: firebaseUser.uid,
-      username: profile?.displayUsername || profile?.username,
-      barId,
-      vibe: value,
-    });
-
+    await updateVibe({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId, vibe: value });
     setFeedback(`You updated the vibe for ${bar.name}.`);
   };
 
@@ -338,9 +273,7 @@ export default function BarDetailPage() {
     if (!isCheckedIntoThisBar) {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
-        setFeedback(
-          `You're checked into ${currentBarName}. Go to that bar's page if you want to update its cover.`
-        );
+        setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to update its cover.`);
       } else {
         setFeedback('Check into this bar first, then you can report cover.');
       }
@@ -350,19 +283,11 @@ export default function BarDetailPage() {
     const lastCover = coverReports.find((item) => item.uid === firebaseUser.uid && item.barId === barId);
     if (lastCover && Date.now() - lastCover.createdAtMillis < coverCooldownMs) {
       const remainingMs = coverCooldownMs - (Date.now() - lastCover.createdAtMillis);
-      setFeedback(
-        `You already reported cover for ${bar.name}. You can update it again in ${formatDuration(remainingMs)}.`
-      );
+      setFeedback(`You already reported cover for ${bar.name}. You can update it again in ${formatDuration(remainingMs)}.`);
       return;
     }
 
-    await updateCover({
-      uid: firebaseUser.uid,
-      username: profile?.displayUsername || profile?.username,
-      barId,
-      range,
-    });
-
+    await updateCover({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId, range });
     setFeedback(`You updated the cover for ${bar.name}.`);
   };
 
@@ -370,9 +295,7 @@ export default function BarDetailPage() {
     if (!isCheckedIntoThisBar) {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
-        setFeedback(
-          `You're checked into ${currentBarName}. Go to that bar's page if you want to update its line.`
-        );
+        setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to update its line.`);
       } else {
         setFeedback('Check into this bar first, then you can report the line length.');
       }
@@ -382,19 +305,11 @@ export default function BarDetailPage() {
     const lastLine = lineReports.find((item) => item.uid === firebaseUser.uid && item.barId === barId);
     if (lastLine && Date.now() - lastLine.createdAtMillis < lineCooldownMs) {
       const remainingMs = lineCooldownMs - (Date.now() - lastLine.createdAtMillis);
-      setFeedback(
-        `You already reported the line for ${bar.name}. You can update it again in ${formatDuration(remainingMs)}.`
-      );
+      setFeedback(`You already reported the line for ${bar.name}. You can update it again in ${formatDuration(remainingMs)}.`);
       return;
     }
 
-    await updateLineLength({
-      uid: firebaseUser.uid,
-      username: profile?.displayUsername || profile?.username,
-      barId,
-      lineLength: value,
-    });
-
+    await updateLineLength({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId, lineLength: value });
     setFeedback(`You updated the line length for ${bar.name}.`);
   };
 
@@ -404,9 +319,7 @@ export default function BarDetailPage() {
     if (!isCheckedIntoThisBar) {
       if (myCheckin?.barId) {
         const currentBarName = getBarMeta(myCheckin.barId)?.name || myCheckin.barId;
-        setFeedback(
-          `You're checked into ${currentBarName}. Go to that bar's page if you want to comment there.`
-        );
+        setFeedback(`You're checked into ${currentBarName}. Go to that bar's page if you want to comment there.`);
       } else {
         setFeedback('Check into this bar first, then you can post a comment.');
       }
@@ -427,47 +340,23 @@ export default function BarDetailPage() {
 
     if (latestMine && Date.now() - latestMine.createdAtMillis < commentCooldownMs) {
       const remainingMs = commentCooldownMs - (Date.now() - latestMine.createdAtMillis);
-      setFeedback(
-        `You just commented at ${bar.name}. You can post again in ${formatDuration(remainingMs)}.`
-      );
+      setFeedback(`You just commented at ${bar.name}. You can post again in ${formatDuration(remainingMs)}.`);
       return;
     }
 
-    await addComment({
-      uid: firebaseUser.uid,
-      username: profile?.displayUsername || profile?.username,
-      barId,
-      text: cleanText.slice(0, 180),
-    });
-
+    await addComment({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, barId, text: cleanText.slice(0, 180) });
     setCommentText('');
     setFeedback(`Your comment was posted for ${bar.name}.`);
   };
 
   const handleReaction = async (commentId, emoji) => {
-    await toggleReaction({
-      uid: firebaseUser.uid,
-      username: profile?.displayUsername || profile?.username,
-      commentId,
-      emoji,
-    });
+    await toggleReaction({ uid: firebaseUser.uid, username: profile?.displayUsername || profile?.username, commentId, emoji });
   };
 
   const handleReportComment = async (comment) => {
     if (comment.isHiddenForUser) return;
-
     try {
-      await reportComment({
-        reporterUid: firebaseUser.uid,
-        reporterUsername: profile?.displayUsername || profile?.username || '',
-        commentId: comment.id,
-        commentOwnerUid: comment.uid || '',
-        commentOwnerUsername: comment.username || '',
-        commentText: comment.text || '',
-        barId,
-        barName: bar?.name || '',
-      });
-
+      await reportComment({ reporterUid: firebaseUser.uid, reporterUsername: profile?.displayUsername || profile?.username || '', commentId: comment.id, commentOwnerUid: comment.uid || '', commentOwnerUsername: comment.username || '', commentText: comment.text || '', barId, barName: bar?.name || '' });
       setFeedback('Comment reported.');
     } catch (error) {
       setFeedback('Could not report comment right now.');
@@ -477,7 +366,6 @@ export default function BarDetailPage() {
   const handleDeleteComment = async (comment) => {
     const confirmed = window.confirm('Delete this comment?');
     if (!confirmed) return;
-
     try {
       await deleteCommentById(comment.id);
       setFeedback('Comment deleted.');
@@ -487,29 +375,12 @@ export default function BarDetailPage() {
   };
 
   const handleBlockUser = async (comment) => {
-    if (!comment?.uid) {
-      setFeedback('Could not block this user.');
-      return;
-    }
-
-    if (comment.uid === firebaseUser.uid) {
-      setFeedback('You cannot block yourself.');
-      return;
-    }
-
+    if (!comment?.uid) { setFeedback('Could not block this user.'); return; }
+    if (comment.uid === firebaseUser.uid) { setFeedback('You cannot block yourself.'); return; }
     try {
       const existingBlocked = profile?.blockedUsers || [];
-
-      if (existingBlocked.includes(comment.uid)) {
-        setFeedback('User already blocked.');
-        return;
-      }
-
-      await blockUser({
-        blockerUid: firebaseUser.uid,
-        blockedUid: comment.uid,
-      });
-
+      if (existingBlocked.includes(comment.uid)) { setFeedback('User already blocked.'); return; }
+      await blockUser({ blockerUid: firebaseUser.uid, blockedUid: comment.uid });
       setFeedback('User blocked.');
     } catch (error) {
       setFeedback('Could not block user right now.');
@@ -517,19 +388,13 @@ export default function BarDetailPage() {
   };
 
   if (!bar) {
-    return (
-      <Layout>
-        <div className="empty-state">That bar wasn't found.</div>
-      </Layout>
-    );
+    return <Layout><div className="empty-state">That bar wasn't found.</div></Layout>;
   }
 
   return (
     <Layout>
       <div className="bar-detail-page">
-        <Link to="/" className="bar-back-button" aria-label="Back to bars">
-          ← Back To Bars
-        </Link>
+        <Link to="/" className="bar-back-button" aria-label="Back to bars">← Back To Bars</Link>
 
         <section className="detail-grid">
           <div className="detail-primary">
@@ -550,20 +415,18 @@ export default function BarDetailPage() {
                   <div><span className="label">Checked In</span><strong>{stats.count}</strong></div>
                   <div><span className="label">Cover</span><strong>{stats.coverSummary ? `${stats.coverSummary.label} · ${stats.coverSummary.count} Reports` : 'No Reports Yet'}</strong></div>
                   <div><span className="label">Line</span><strong>{stats.lineSummary ? `${stats.lineSummary.label} · ${stats.lineSummary.count} Reports` : 'No Reports Yet'}</strong></div>
-                  <div><span className="label">Your Status</span><strong>{myCheckin?.barId === barId ? 'You Are Here' : 'Not Checked In'}</strong></div>
+                  <div><span className="label">Your Status</span><strong>{isCheckedIntoThisBar ? 'You Are Here' : 'Not Checked In'}</strong></div>
                 </div>
 
                 <div className="action-stack detail-checkin-actions">
                   {isCheckedIntoThisBar ? (
-                    <button className="primary-button detail-checkin-button" onClick={handleLeaveBar}>Leave Bar</button>
+                    <button className="primary-button detail-checkin-button" onClick={handleLeaveBar} disabled={leaving}>{leaving ? 'Leaving…' : 'Leave Bar'}</button>
                   ) : (
-                    <button className="primary-button detail-checkin-button" onClick={handleCheckIn} disabled={checkingIn}>
-                      {checkingIn ? 'Checking In…' : 'I’m Here'}
-                    </button>
+                    <button className="primary-button detail-checkin-button" onClick={handleCheckIn} disabled={checkingIn || leaving}>{checkingIn ? 'Checking In…' : 'I’m Here'}</button>
                   )}
                 </div>
 
-                <p className="detail-checkin-note">Check in when you arrive so the live crowd count stays accurate.</p>
+                <p className="detail-checkin-note">Check in when you arrive so the live crowd count stays accurate. After leaving, there’s a 20-minute wait before your next check-in.</p>
                 {feedback ? <div className="info-banner detail-feedback">{feedback}</div> : null}
               </div>
             </div>
