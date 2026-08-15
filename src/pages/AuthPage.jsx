@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthPage() {
-  const { signUp, logIn, isAuthed, authLoading } = useAuth();
+  const { signUp, logIn, isAuthed, authLoading, profile } = useAuth();
   const [isSignup, setIsSignup] = useState(true);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -12,7 +12,7 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  if (!authLoading && isAuthed) return <Navigate to="/" replace />;
+  if (!authLoading && isAuthed) return <Navigate to={profile?.avatarId ? '/' : '/pick-avatar'} replace />;
 
   const handleSubmit = async (event) => {
     event.preventDefault(); setError(''); setSubmitting(true);
