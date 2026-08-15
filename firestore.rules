@@ -89,14 +89,6 @@ service cloud.firestore {
       return signedIn() && request.resource.data.uid == request.auth.uid;
     }
 
-    function isOwnInviteCooldownDoc() {
-      return signedIn() && resource.data.fromUid == request.auth.uid;
-    }
-
-    function isOwnInviteCooldownCreate() {
-      return signedIn() && request.resource.data.fromUid == request.auth.uid;
-    }
-
     match /users/{userId} {
       allow read: if isSelf(userId);
 
@@ -110,7 +102,6 @@ service cloud.firestore {
       allow delete: if isSelf(userId);
     }
 
-    // Public profile data contains only fields needed for username search.
     match /publicProfiles/{userId} {
       allow read: if signedIn();
       allow create, update: if isSelf(userId)
@@ -155,8 +146,9 @@ service cloud.firestore {
     }
 
     match /userBarStats/{docId} {
+      // Queries use where('uid', '==', request.auth.uid), so authorize by document data.
       allow read: if signedIn()
-        && docId.matches('^' + request.auth.uid + '_.*$');
+        && resource.data.uid == request.auth.uid;
 
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
