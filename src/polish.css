@@ -25,12 +25,13 @@ html,body { scroll-behavior:auto!important; overscroll-behavior-y:none; }
 .home-stack>div:first-child { text-align:left; padding-top:18px!important; padding-bottom:18px!important; }
 .home-stack>div:first-child h1,.home-stack>div:first-child p { margin-left:0!important; margin-right:0!important; }
 .home-stack h1,.home-stack h2,.home-stack h3,.label,.signup-requirements-title { text-transform:capitalize; }
+.bar-detail-page { display:grid; gap:12px; }
+.bar-back-button { width:max-content; display:inline-flex; align-items:center; min-height:40px; padding:8px 12px; border:1px solid var(--stroke); border-radius:12px; background:rgba(255,255,255,.025); color:#dce8df; font-size:.9rem; font-weight:800; }
 
 /* Authentication */
 .auth-shell { min-height:100dvh; display:block; padding:max(64px,calc(env(safe-area-inset-top) + 22px)) 16px calc(env(safe-area-inset-bottom) + 24px); }
 .auth-panel { width:min(520px,100%); margin:0 auto; padding:12px 20px 20px; text-align:center; background:transparent; border:0; border-radius:0; box-shadow:none; }
 .auth-brand { display:grid; justify-items:center; gap:10px; margin-bottom:22px; }
-/* Intentionally oversized so the HERE mark is a real hero element on both auth screens. */
 .auth-logo-clean { width:min(390px,94vw)!important; max-width:none!important; height:auto; display:block; object-fit:contain; }
 .auth-brand p { margin:0; color:var(--text-soft); font-size:.93rem; font-weight:600; letter-spacing:-.01em; }
 .auth-heading { max-width:430px; margin:0 auto 20px; text-align:center; }
