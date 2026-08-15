@@ -3,6 +3,7 @@ import Layout from '../components/Layout';
 import SearchBar from '../components/SearchBar';
 import HottestHero from '../components/HottestHero';
 import BarCard from '../components/BarCard';
+import { useAuth } from '../context/AuthContext';
 import { msuBars } from '../lib/bars';
 import { buildBarStats } from '../lib/scoring';
 import { subscribeToTodayCollection } from '../lib/firebaseHelpers';
@@ -21,6 +22,7 @@ function summarizeLineReportsForBar(barId, lineReports) {
 }
 
 export default function HomePage() {
+  const { firebaseUser } = useAuth();
   const [search, setSearch] = useState('');
   const [checkins, setCheckins] = useState([]);
   const [vibes, setVibes] = useState([]);
@@ -57,6 +59,10 @@ export default function HomePage() {
       }];
     })
   ), [checkins, vibes, coverReports, comments, reactions, lineReports]);
+
+  const currentBarId = useMemo(() => {
+    return checkins.find((item) => item.uid === firebaseUser?.uid && item.active)?.barId || '';
+  }, [checkins, firebaseUser?.uid]);
 
   const hottestBar = useMemo(() => {
     const activeBars = msuBars.filter((bar) => (statsByBar[bar.id]?.count || 0) > 0);
@@ -103,6 +109,7 @@ export default function HomePage() {
                 bar={bar}
                 stats={statsByBar[bar.id]}
                 isHottest={Boolean(hottestBar && hottestBar.id === bar.id)}
+                isCurrentBar={currentBarId === bar.id}
               />
             ))}
           </div>
