@@ -10,12 +10,13 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function hasOnlyKeys(allowed) {
-      return request.resource.data.keys().hasOnly(allowed);
-    }
-
-    function userDocIsSelf() {
-      return signedIn() && request.auth.uid == request.resource.id;
+    function profileUsernameMatches() {
+      return signedIn()
+        && request.resource.data.username is string
+        && (
+          request.resource.data.username == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username ||
+          request.resource.data.username == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayUsername
+        );
     }
 
     function isFriendshipMember() {
@@ -50,17 +51,6 @@ service cloud.firestore {
 
     function isNotificationSenderOnCreate() {
       return signedIn() && request.resource.data.fromUid == request.auth.uid;
-    }
-
-    function isOwnUserBarStatsDoc() {
-      return signedIn()
-        && resource.data.uid == request.auth.uid;
-    }
-
-    function isOwnUserBarStatsCreate() {
-      return signedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.id.matches('^' + request.auth.uid + '_.*$');
     }
 
     function isOwnCheckinDoc() {
@@ -107,10 +97,6 @@ service cloud.firestore {
       return signedIn() && request.resource.data.fromUid == request.auth.uid;
     }
 
-    function isOwnActiveCheckinDoc(uid) {
-      return isSelf(uid);
-    }
-
     match /users/{userId} {
       allow read: if isSelf(userId);
 
@@ -124,7 +110,21 @@ service cloud.firestore {
       allow delete: if isSelf(userId);
     }
 
-    // For production, bars should be pre-seeded by you/admin and then read-only.
+    // Public profile data contains only fields needed for username search.
+    match /publicProfiles/{userId} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'username',
+          'displayUsername',
+          'displayUsernameLower',
+          'updatedAt'
+        ]);
+      allow delete: if isSelf(userId);
+    }
+
     match /bars/{barId} {
       allow read: if signedIn();
       allow write: if false;
@@ -134,48 +134,62 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if isOwnCheckinCreate()
+        && profileUsernameMatches()
         && request.resource.data.dayKey is string
         && request.resource.data.barId is string
         && request.resource.data.active is bool;
 
-      allow update: if isOwnCheckinDoc();
+      allow update: if isOwnCheckinDoc()
+        && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches();
 
       allow delete: if false;
     }
 
     match /activeCheckins/{uid} {
-      allow read, write: if isOwnActiveCheckinDoc(uid);
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches();
+      allow delete: if isSelf(uid);
     }
 
-   match /userBarStats/{docId} {
-  allow read: if signedIn()
-    && docId.matches('^' + request.auth.uid + '_.*$');
+    match /userBarStats/{docId} {
+      allow read: if signedIn()
+        && docId.matches('^' + request.auth.uid + '_.*$');
 
-  allow create: if signedIn()
-    && request.resource.data.uid == request.auth.uid
-    && docId.matches('^' + request.auth.uid + '_.*$');
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && docId.matches('^' + request.auth.uid + '_.*$')
+        && profileUsernameMatches();
 
-  allow update: if signedIn()
-    && resource.data.uid == request.auth.uid
-    && request.resource.data.uid == request.auth.uid
-    && docId.matches('^' + request.auth.uid + '_.*$');
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && docId.matches('^' + request.auth.uid + '_.*$')
+        && profileUsernameMatches();
 
-  allow delete: if false;
-}
+      allow delete: if false;
+    }
 
     match /userStats/{uid} {
-      allow read, write: if isSelf(uid)
-        && request.resource.data.uid == request.auth.uid;
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches();
+      allow delete: if false;
     }
 
     match /vibes/{docId} {
       allow read: if signedIn();
 
       allow create: if isOwnContentCreate()
+        && profileUsernameMatches()
         && request.resource.data.vibe is string;
 
       allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches();
 
       allow delete: if false;
     }
@@ -184,10 +198,12 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if isOwnContentCreate()
+        && profileUsernameMatches()
         && request.resource.data.range is string;
 
       allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches();
 
       allow delete: if false;
     }
@@ -196,10 +212,12 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if isOwnContentCreate()
+        && profileUsernameMatches()
         && request.resource.data.lineLength is string;
 
       allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches();
 
       allow delete: if false;
     }
@@ -208,12 +226,14 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if isOwnContentCreate()
+        && profileUsernameMatches()
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 180
         && request.resource.data.hidden == false;
 
       allow update: if isOwnContent()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches();
 
       allow delete: if isOwnContent();
     }
@@ -222,10 +242,12 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if isOwnReactionCreate()
+        && profileUsernameMatches()
         && request.resource.data.emoji in ['🔥', '👀', '🍻'];
 
       allow update: if isOwnReaction()
         && request.resource.data.uid == request.auth.uid
+        && profileUsernameMatches()
         && request.resource.data.emoji in ['🔥', '👀', '🍻'];
 
       allow delete: if isOwnReaction();
@@ -233,18 +255,14 @@ service cloud.firestore {
 
     match /reports/{docId} {
       allow create: if isOwnReportCreate();
-      allow read: if false;
-      allow update, delete: if false;
+      allow read, update, delete: if false;
     }
 
     match /hiddenComments/{docId} {
       allow read: if isOwnHiddenCommentDoc();
-
       allow create: if isOwnHiddenCommentCreate();
-
       allow update: if isOwnHiddenCommentDoc()
         && request.resource.data.uid == request.auth.uid;
-
       allow delete: if isOwnHiddenCommentDoc();
     }
 
@@ -255,7 +273,6 @@ service cloud.firestore {
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.status == 'pending';
 
-      // lets recipient accept/decline, or either side update their own participating request safely
       allow update: if isFriendRequestParticipant()
         && request.resource.data.fromUid == resource.data.fromUid
         && request.resource.data.toUid == resource.data.toUid;
@@ -265,11 +282,8 @@ service cloud.firestore {
 
     match /friendships/{docId} {
       allow read: if isFriendshipMember();
-
       allow create: if isFriendshipMemberOnCreate();
-
-      allow update: if false;
-      allow delete: if false;
+      allow update, delete: if false;
     }
 
     match /invites/{docId} {
@@ -279,7 +293,6 @@ service cloud.firestore {
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.status == 'pending';
 
-      // recipient can dismiss, participants can read, but keep ids stable
       allow update: if isInviteParticipant()
         && request.resource.data.fromUid == resource.data.fromUid
         && request.resource.data.toUid == resource.data.toUid
@@ -288,24 +301,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-   match /inviteCooldowns/{docId} {
-  allow read: if signedIn();
+    match /inviteCooldowns/{docId} {
+      allow read: if signedIn();
 
-  allow create: if signedIn()
-    && request.resource.data.fromUid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid;
 
-  allow update: if signedIn()
-    && resource.data.fromUid == request.auth.uid
-    && request.resource.data.fromUid == resource.data.fromUid
-    && request.resource.data.toUid == resource.data.toUid
-    && request.resource.data.barId == resource.data.barId;
+      allow update: if signedIn()
+        && resource.data.fromUid == request.auth.uid
+        && request.resource.data.fromUid == resource.data.fromUid
+        && request.resource.data.toUid == resource.data.toUid
+        && request.resource.data.barId == resource.data.barId;
 
-  allow delete: if false;
-}
+      allow delete: if false;
+    }
+
     match /notifications/{docId} {
       allow read: if isNotificationRecipient();
 
-      // sender can create notifications to someone else, recipient can only read/update their own
       allow create: if isNotificationSenderOnCreate()
         && request.resource.data.read == false;
 
