@@ -20,6 +20,12 @@ service cloud.firestore {
           request.resource.data.username == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayUsername
         );
     }
+    function idContainsSignedInUid(docId) {
+      return signedIn() && (
+        docId.matches('^' + request.auth.uid + '_.*$') ||
+        docId.matches('^.*_' + request.auth.uid + '$')
+      );
+    }
     function isFriendshipMember() { return signedIn() && request.auth.uid in resource.data.memberUids; }
     function isFriendshipMemberOnCreate() { return signedIn() && request.auth.uid in request.resource.data.memberUids && request.resource.data.memberUids.size() == 2; }
     function isFriendRequestParticipant() { return signedIn() && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid); }
@@ -74,9 +80,7 @@ service cloud.firestore {
     }
 
     match /userBarStats/{docId} {
-      // Direct transaction reads must work even before the first stats document exists.
       allow get: if signedIn() && docId.matches('^' + request.auth.uid + '_.*$');
-      // Profile uses a collection query scoped to the signed-in user's uid.
       allow list: if signedIn() && resource.data.uid == request.auth.uid;
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && docId.matches('^' + request.auth.uid + '_.*$') && profileUsernameMatches();
       allow update: if signedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid && docId.matches('^' + request.auth.uid + '_.*$') && profileUsernameMatches();
@@ -134,14 +138,16 @@ service cloud.firestore {
     }
 
     match /friendRequests/{docId} {
-      allow read: if isFriendRequestParticipant();
+      allow get: if idContainsSignedInUid(docId);
+      allow list: if isFriendRequestParticipant();
       allow create: if signedIn() && request.resource.data.fromUid == request.auth.uid && request.resource.data.status == 'pending';
       allow update: if isFriendRequestParticipant() && request.resource.data.fromUid == resource.data.fromUid && request.resource.data.toUid == resource.data.toUid;
       allow delete: if false;
     }
 
     match /friendships/{docId} {
-      allow read: if isFriendshipMember();
+      allow get: if idContainsSignedInUid(docId);
+      allow list: if isFriendshipMember();
       allow create: if isFriendshipMemberOnCreate();
       allow update, delete: if false;
     }
