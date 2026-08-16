@@ -9,6 +9,7 @@ import LegalPage from './pages/LegalPage';
 import AvatarPickerPage from './pages/AvatarPickerPage';
 import AvatarConfirmPage from './pages/AvatarConfirmPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './context/AuthContext';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -18,6 +19,15 @@ function ScrollToTop() {
   }, [pathname]);
 
   return null;
+}
+
+function AvatarRequired({ children }) {
+  const { profile, authLoading } = useAuth();
+
+  if (authLoading) return null;
+  if (!profile?.avatarId) return <Navigate to="/pick-avatar" replace />;
+
+  return children;
 }
 
 export default function App() {
@@ -34,10 +44,10 @@ export default function App() {
         <Route path="/pick-avatar" element={<ProtectedRoute><AvatarPickerPage /></ProtectedRoute>} />
         <Route path="/confirm-avatar" element={<ProtectedRoute><AvatarConfirmPage /></ProtectedRoute>} />
 
-        <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-        <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><HomeTabPage /></ProtectedRoute>} />
-        <Route path="/bar/:barId" element={<ProtectedRoute><BarDetailPage /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><AvatarRequired><HomePage /></AvatarRequired></ProtectedRoute>} />
+        <Route path="/friends" element={<ProtectedRoute><AvatarRequired><FriendsPage /></AvatarRequired></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><AvatarRequired><HomeTabPage /></AvatarRequired></ProtectedRoute>} />
+        <Route path="/bar/:barId" element={<ProtectedRoute><AvatarRequired><BarDetailPage /></AvatarRequired></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
