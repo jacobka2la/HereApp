@@ -3,7 +3,6 @@ import { avatars } from '../lib/avatars';
 import { useAuth } from '../context/AuthContext';
 import '../avatar-picker.css';
 
-const AVATAR_SIGNUP_FLAG = 'here_needs_avatar_after_signup';
 const AVATAR_PENDING_KEY = 'here_pending_avatar_choice';
 
 export default function AvatarConfirmPage() {
@@ -15,11 +14,9 @@ export default function AvatarConfirmPage() {
   if (authLoading) return null;
   if (!firebaseUser) return <Navigate to="/auth" replace />;
   if (profile?.avatarId) {
-    sessionStorage.removeItem(AVATAR_SIGNUP_FLAG);
     sessionStorage.removeItem(AVATAR_PENDING_KEY);
     return <Navigate to="/" replace />;
   }
-  if (sessionStorage.getItem(AVATAR_SIGNUP_FLAG) !== '1') return <Navigate to="/" replace />;
   if (!selectedAvatar) return <Navigate to="/pick-avatar" replace />;
 
   const changeAvatar = () => {
@@ -28,7 +25,6 @@ export default function AvatarConfirmPage() {
 
   const confirmAvatar = async () => {
     await setAvatarOnce(selected);
-    sessionStorage.removeItem(AVATAR_SIGNUP_FLAG);
     sessionStorage.removeItem(AVATAR_PENDING_KEY);
     navigate('/', { replace: true });
   };
