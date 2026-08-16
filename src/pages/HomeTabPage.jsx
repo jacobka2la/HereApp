@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import UserAvatar from '../components/UserAvatar';
 import { useAuth } from '../context/AuthContext';
@@ -213,8 +214,25 @@ export default function HomeTabPage() {
 
         <div style={{ ...cardStyle, padding: '24px' }}>
           <h2 style={{ marginTop: 0 }}>Support</h2>
-          <p style={{ color: 'rgba(235,255,240,0.75)', lineHeight: 1.6 }}>Need Help Or Want To Report A Safety Issue? Contact Support At:</p>
-          <p style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: 0 }}>here-msu@outlook.com</p>
+          <p style={{ color: 'rgba(235,255,240,0.75)', lineHeight: 1.6, marginBottom: '14px' }}>Need help with Here?</p>
+          <Link
+            to="/support"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '48px',
+              padding: '0 18px',
+              borderRadius: '16px',
+              background: 'rgba(83, 240, 124, 0.12)',
+              border: '1px solid rgba(83, 240, 124, 0.2)',
+              color: '#78ffaa',
+              fontWeight: 900,
+              textDecoration: 'none',
+            }}
+          >
+            Click Here For Help
+          </Link>
         </div>
 
         <div style={{ background: 'rgba(25, 7, 7, 0.88)', border: '1px solid rgba(255, 120, 120, 0.16)', borderRadius: '28px', padding: '24px', boxShadow: '0 18px 45px rgba(0, 0, 0, 0.22)' }}>
