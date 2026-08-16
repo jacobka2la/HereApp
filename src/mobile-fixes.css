@@ -48,6 +48,41 @@ body::-webkit-scrollbar,
   min-height: 100dvh;
 }
 
+/* Auth screen spacing + larger branding for both signup and login. */
+.auth-shell {
+  padding-top: max(34px, calc(env(safe-area-inset-top) + 8px)) !important;
+}
+
+.auth-panel {
+  padding-top: 0 !important;
+}
+
+.auth-brand {
+  margin-bottom: 14px !important;
+  gap: 8px !important;
+}
+
+.auth-logo-clean {
+  width: min(470px, 112vw) !important;
+  max-width: none !important;
+  margin: -8px auto -4px !important;
+}
+
+.auth-heading {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 480px) {
+  .auth-shell {
+    padding-top: max(30px, calc(env(safe-area-inset-top) + 6px)) !important;
+  }
+
+  .auth-logo-clean {
+    width: min(445px, 110vw) !important;
+    margin-top: -10px !important;
+  }
+}
+
 /* Keep the tab bar visually glued to the phone viewport while content scrolls. */
 .bottom-nav {
   position: fixed !important;
