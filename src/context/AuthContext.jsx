@@ -57,6 +57,10 @@ export function AuthProvider({ children }) {
       try {
         if (!isMounted) return;
 
+        // Keep protected/avatar-gated routes hidden until the matching profile
+        // has finished loading. This prevents the avatar picker from flashing
+        // for returning users immediately after login.
+        setAuthLoading(true);
         setFirebaseUser(user);
 
         if (!user) {
@@ -102,27 +106,34 @@ export function AuthProvider({ children }) {
     const cleanUsername = normalizeUsername(username);
     const displayUsername = formatDisplayUsername(username);
 
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = credential.user;
+    setAuthLoading(true);
 
-    const userData = {
-      uid: user.uid,
-      email: user.email,
-      username: cleanUsername,
-      displayUsername,
-      displayUsernameLower: displayUsername.toLowerCase(),
-      avatarId: null,
-      blockedUsers: [],
-      createdAt: serverTimestamp(),
-    };
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = credential.user;
 
-    await setDoc(doc(db, 'users', user.uid), userData);
-    await setDoc(doc(db, 'publicProfiles', user.uid), buildPublicProfile(userData));
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        username: cleanUsername,
+        displayUsername,
+        displayUsernameLower: displayUsername.toLowerCase(),
+        avatarId: null,
+        blockedUsers: [],
+        createdAt: serverTimestamp(),
+      };
 
-    setProfile({
-      ...userData,
-      createdAt: new Date().toISOString(),
-    });
+      await setDoc(doc(db, 'users', user.uid), userData);
+      await setDoc(doc(db, 'publicProfiles', user.uid), buildPublicProfile(userData));
+
+      setProfile({
+        ...userData,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setAuthLoading(false);
+      throw error;
+    }
   };
 
   const setAvatarOnce = async (avatarId) => {
@@ -160,7 +171,15 @@ export function AuthProvider({ children }) {
   };
 
   const logIn = async (email, password) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    setAuthLoading(true);
+    setProfile(null);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      setAuthLoading(false);
+      throw error;
+    }
   };
 
   const logOut = async () => {
