@@ -26,7 +26,11 @@ const INVITE_COOLDOWN_MS = 5 * 60 * 1000;
 
 async function createNotification({ toUid, type, title, body, fromUid = '', fromUsername = '', barId = '', barName = '', meta = {} }) {
   if (!toUid) return;
-  await addDoc(collection(db, 'notifications'), { toUid, type, title, body, fromUid, fromUsername, barId, barName, meta, read: false, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  try {
+    await addDoc(collection(db, 'notifications'), { toUid, type, title, body, fromUid, fromUsername, barId, barName, meta, read: false, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  } catch (error) {
+    console.warn('In-app notification write failed:', error?.message || error);
+  }
 }
 
 async function notifyFriendsOfCheckIn({ uid, username, barId, barName }) {
@@ -90,6 +94,9 @@ export function subscribeToFriendRequestsForUser(uid, callback) {
   return onSnapshot(q, (snap) => {
     const items = snap.docs.map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now() })).sort((a, b) => b.createdAtMillis - a.createdAtMillis);
     callback(items);
+  }, (error) => {
+    console.error('Friend request subscription failed:', error?.message || error);
+    callback([]);
   });
 }
 
@@ -140,18 +147,55 @@ export async function findUserByUsername(username) {
 }
 
 export async function sendFriendRequest({ fromUid, fromUsername, toUid, toUsername }) {
+  if (!fromUid || !toUid || fromUid === toUid) throw new Error('INVALID_REQUEST');
+
+  const safeFromUsername = String(fromUsername || '').trim();
+  const safeToUsername = String(toUsername || '').trim();
   const directRequestId = `${fromUid}_${toUid}`;
   const reverseRequestId = `${toUid}_${fromUid}`;
   const friendshipId = [fromUid, toUid].sort().join('_');
-  const friendshipSnap = await getDoc(doc(db, 'friendships', friendshipId));
+
+  const [friendshipSnap, directSnap, reverseSnap] = await Promise.all([
+    getDoc(doc(db, 'friendships', friendshipId)),
+    getDoc(doc(db, 'friendRequests', directRequestId)),
+    getDoc(doc(db, 'friendRequests', reverseRequestId)),
+  ]);
+
   if (friendshipSnap.exists()) throw new Error('ALREADY_FRIENDS');
-  const reverseSnap = await getDoc(doc(db, 'friendRequests', reverseRequestId));
+  if (directSnap.exists() && directSnap.data()?.status === 'pending') throw new Error('REQUEST_ALREADY_SENT');
+
   if (reverseSnap.exists() && reverseSnap.data()?.status === 'pending') {
-    await respondToFriendRequest({ requestId: reverseRequestId, fromUid: toUid, fromUsername: toUsername, toUid: fromUid, toUsername: fromUsername, status: 'accepted' });
-    return;
+    await respondToFriendRequest({
+      requestId: reverseRequestId,
+      fromUid: toUid,
+      fromUsername: safeToUsername,
+      toUid: fromUid,
+      toUsername: safeFromUsername,
+      status: 'accepted',
+    });
+    return { status: 'accepted_existing_request' };
   }
-  await setDoc(doc(db, 'friendRequests', directRequestId), { fromUid, fromUsername, toUid, toUsername: toUsername.trim().toLowerCase(), status: 'pending', createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-  await createNotification({ toUid, type: 'friend_request', title: 'New friend request', body: `@${fromUsername} sent you a friend request.`, fromUid, fromUsername });
+
+  await setDoc(doc(db, 'friendRequests', directRequestId), {
+    fromUid,
+    fromUsername: safeFromUsername,
+    toUid,
+    toUsername: safeToUsername.toLowerCase(),
+    status: 'pending',
+    createdAt: serverTimestamp(),
+    createdAtMillis: Date.now(),
+  });
+
+  createNotification({
+    toUid,
+    type: 'friend_request',
+    title: 'New Friend Request',
+    body: `@${safeFromUsername} requested you.`,
+    fromUid,
+    fromUsername: safeFromUsername,
+  });
+
+  return { status: 'sent' };
 }
 
 export async function respondToFriendRequest({ requestId, fromUid, fromUsername, toUid, toUsername, status }) {
@@ -159,7 +203,7 @@ export async function respondToFriendRequest({ requestId, fromUid, fromUsername,
   if (status !== 'accepted') return;
   const friendshipId = [fromUid, toUid].sort().join('_');
   await setDoc(doc(db, 'friendships', friendshipId), { memberUids: [fromUid, toUid], userAUid: fromUid, userAUsername: fromUsername, userBUid: toUid, userBUsername: toUsername, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-  await createNotification({ toUid: fromUid, type: 'friend_accept', title: 'Friend request accepted', body: `@${toUsername} accepted your friend request.`, fromUid: toUid, fromUsername: toUsername });
+  createNotification({ toUid: fromUid, type: 'friend_accept', title: 'Friend Request Accepted', body: `@${toUsername} accepted your friend request.`, fromUid: toUid, fromUsername: toUsername });
 }
 
 export async function upsertCheckIn({ uid, username, barId }) {
@@ -194,7 +238,7 @@ export async function upsertCheckIn({ uid, username, barId }) {
     transaction.set(userStatsRef, { uid, username, totalVisits: previousTotalVisits + 1, uniqueBars: isFirstVisitToBar ? previousUniqueBars + 1 : previousUniqueBars, lastVisitBarId: barId, lastVisitAt: serverTimestamp(), lastVisitAtMillis: now, updatedAt: serverTimestamp(), updatedAtMillis: now }, { merge: true });
   });
   const barMeta = msuBars.find((bar) => bar.id === barId);
-  await notifyFriendsOfCheckIn({ uid, username, barId, barName: barMeta?.name || barId });
+  notifyFriendsOfCheckIn({ uid, username, barId, barName: barMeta?.name || barId }).catch(() => {});
 }
 
 export async function leaveBar(uid) {
@@ -222,6 +266,17 @@ export async function reportComment({ reporterUid, reporterUsername, commentId, 
 export async function hideComment(commentId) { await setDoc(doc(db, 'comments', commentId), { hidden: true, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }, { merge: true }); }
 export async function blockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayUnion(blockedUid) }); }
 export async function unblockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayRemove(blockedUid) }); }
-export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message }) { const now = Date.now(); const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`); const cooldownSnap = await getDoc(cooldownRef); if (cooldownSnap.exists()) { const lastSentAtMillis = cooldownSnap.data()?.lastSentAtMillis ?? 0; if (lastSentAtMillis && now - lastSentAtMillis < INVITE_COOLDOWN_MS) throw new Error('COOLDOWN'); } await addDoc(collection(db, 'invites'), { fromUid, fromUsername, toUid, toUsername: toUsername.trim().toLowerCase(), barId, barName, message, status: 'pending', createdAt: serverTimestamp(), createdAtMillis: now }); await setDoc(cooldownRef, { fromUid, toUid, barId, lastSentAt: serverTimestamp(), lastSentAtMillis: now }); await createNotification({ toUid, type: 'invite', title: `@${fromUsername} invited you out`, body: message || `Come to ${barName}, it's packed!`, fromUid, fromUsername, barId, barName }); }
+export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message }) {
+  const now = Date.now();
+  const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`);
+  const cooldownSnap = await getDoc(cooldownRef);
+  if (cooldownSnap.exists()) {
+    const lastSentAtMillis = cooldownSnap.data()?.lastSentAtMillis ?? 0;
+    if (lastSentAtMillis && now - lastSentAtMillis < INVITE_COOLDOWN_MS) throw new Error('COOLDOWN');
+  }
+  await addDoc(collection(db, 'invites'), { fromUid, fromUsername, toUid, toUsername: String(toUsername || '').trim().toLowerCase(), barId, barName, message, status: 'pending', createdAt: serverTimestamp(), createdAtMillis: now });
+  await setDoc(cooldownRef, { fromUid, toUid, barId, lastSentAt: serverTimestamp(), lastSentAtMillis: now });
+  createNotification({ toUid, type: 'invite', title: `@${fromUsername} invited you out`, body: message || `Come to ${barName}, it's packed!`, fromUid, fromUsername, barId, barName });
+}
 export async function dismissInvite(inviteId) { await setDoc(doc(db, 'invites', inviteId), { status: 'dismissed', updatedAt: serverTimestamp(), updatedAtMillis: Date.now() }, { merge: true }); }
 export async function toggleReaction({ uid, username, commentId, emoji }) { const ref = doc(db, 'commentReactions', `${commentId}_${uid}`); const snap = await getDoc(ref); if (snap.exists() && snap.data().emoji === emoji) { await deleteDoc(ref); return; } await setDoc(ref, { uid, username, commentId, emoji, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
