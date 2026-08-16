@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -39,6 +40,92 @@ async function archiveCheckins() {
   await writer.close();
   return snapshot.size;
 }
+
+async function sendPushToUser({ toUid, title, body, data = {} }) {
+  if (!toUid) return;
+
+  const tokenSnapshot = await db.collection('deviceTokens').where('uid', '==', toUid).get();
+  const tokenDocs = tokenSnapshot.docs.filter((document) => document.data()?.token);
+  if (!tokenDocs.length) return;
+
+  const tokens = [...new Set(tokenDocs.map((document) => document.data().token))];
+  const stringData = Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, String(value ?? '')])
+  );
+
+  const response = await admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: { title, body },
+    data: stringData,
+    apns: {
+      payload: {
+        aps: {
+          sound: 'default',
+        },
+      },
+    },
+  });
+
+  const invalidCodes = new Set([
+    'messaging/invalid-registration-token',
+    'messaging/registration-token-not-registered',
+  ]);
+
+  const writer = db.bulkWriter();
+  let hasDeletes = false;
+  response.responses.forEach((result, index) => {
+    if (!result.success && invalidCodes.has(result.error?.code)) {
+      const invalidToken = tokens[index];
+      tokenDocs
+        .filter((document) => document.data().token === invalidToken)
+        .forEach((document) => {
+          writer.delete(document.ref);
+          hasDeletes = true;
+        });
+    }
+  });
+  if (hasDeletes) await writer.close();
+  else await writer.close();
+}
+
+exports.pushFriendRequest = onDocumentCreated('friendRequests/{requestId}', async (event) => {
+  const request = event.data?.data();
+  if (!request || request.status !== 'pending') return;
+
+  const fromUsername = request.fromUsername || 'Someone';
+  await sendPushToUser({
+    toUid: request.toUid,
+    title: 'New Friend Request',
+    body: `@${fromUsername} requested you.`,
+    data: {
+      type: 'friend_request',
+      fromUid: request.fromUid || '',
+      fromUsername,
+      route: '/friends',
+    },
+  });
+});
+
+exports.pushBarInvite = onDocumentCreated('invites/{inviteId}', async (event) => {
+  const invite = event.data?.data();
+  if (!invite || invite.status !== 'pending') return;
+
+  const fromUsername = invite.fromUsername || 'A friend';
+  const barName = invite.barName || 'a bar';
+  await sendPushToUser({
+    toUid: invite.toUid,
+    title: `@${fromUsername} Invited You`,
+    body: `${fromUsername} invited you to ${barName}.`,
+    data: {
+      type: 'bar_invite',
+      fromUid: invite.fromUid || '',
+      fromUsername,
+      barId: invite.barId || '',
+      barName,
+      route: invite.barId ? `/bar/${invite.barId}` : '/friends',
+    },
+  });
+});
 
 exports.resetNightlyCollections = onSchedule(
   {
