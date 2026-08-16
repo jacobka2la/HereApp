@@ -7,6 +7,7 @@ import HomeTabPage from './pages/HomeTabPage';
 import BarDetailPage from './pages/BarDetailPage';
 import LegalPage from './pages/LegalPage';
 import AvatarPickerPage from './pages/AvatarPickerPage';
+import AvatarConfirmPage from './pages/AvatarConfirmPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function ScrollToTop() {
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/community-rules" element={<LegalPage />} />
         <Route path="/support" element={<LegalPage />} />
         <Route path="/pick-avatar" element={<ProtectedRoute><AvatarPickerPage /></ProtectedRoute>} />
+        <Route path="/confirm-avatar" element={<ProtectedRoute><AvatarConfirmPage /></ProtectedRoute>} />
 
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
