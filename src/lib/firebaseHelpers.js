@@ -111,11 +111,17 @@ export function subscribeToFriendsForUser(uid, callback) {
 
 export async function getPublicProfilesByUids(uids = []) {
   const uniqueUids = [...new Set(uids.filter(Boolean))];
-  const profiles = await Promise.all(uniqueUids.map(async (uid) => {
+  const entries = await Promise.all(uniqueUids.map(async (uid) => {
     const snap = await getDoc(doc(db, 'publicProfiles', uid));
-    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    if (!snap.exists()) return null;
+
+    // The document ID is the authoritative Firebase UID. Keying by a stored
+    // `uid` field allowed stale/legacy profile data to attach the wrong avatar
+    // to a friend's row. Always bind the fetched profile to the UID we asked for.
+    return [uid, { id: snap.id, ...snap.data(), uid }];
   }));
-  return Object.fromEntries(profiles.filter(Boolean).map((item) => [item.uid || item.id, item]));
+
+  return Object.fromEntries(entries.filter(Boolean));
 }
 
 export function subscribeToUserBarStats(uid, callback) {
