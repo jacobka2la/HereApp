@@ -172,5 +172,13 @@ service cloud.firestore {
       allow update: if isNotificationRecipient() && request.resource.data.toUid == resource.data.toUid && request.resource.data.fromUid == resource.data.fromUid;
       allow delete: if false;
     }
+
+    match /deviceTokens/{docId} {
+      allow read: if false;
+      allow create, update: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.token is string;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
   }
 }
