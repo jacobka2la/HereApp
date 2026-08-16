@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import './polish.css';
@@ -10,11 +10,11 @@ import ErrorBoundary from './components/ErrorBoundary';
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
+      <HashRouter>
         <AuthProvider>
           <App />
         </AuthProvider>
-      </BrowserRouter>
+      </HashRouter>
     </ErrorBoundary>
   </React.StrictMode>
 );
