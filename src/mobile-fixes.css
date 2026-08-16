@@ -1,0 +1,86 @@
+/* Mobile interaction fixes: prevent sideways drift, keep scrolling native/smooth,
+   hide scrollbars, and pin the bottom nav to the viewport. */
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: hidden !important;
+  overscroll-behavior-x: none !important;
+}
+
+html {
+  scrollbar-width: none;
+}
+
+body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar,
+.app-shell::-webkit-scrollbar,
+.page-shell::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+#root,
+.app-shell,
+.page-shell,
+.home-stack,
+.detail-grid,
+.auth-shell,
+.avatar-picker-shell {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.app-shell {
+  width: 100%;
+  min-height: 100dvh;
+}
+
+/* Keep the tab bar visually glued to the phone viewport while content scrolls. */
+.bottom-nav {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  width: min(calc(100vw - 32px), 500px) !important;
+  margin: 0 !important;
+  transform: translate3d(-50%, 0, 0);
+  -webkit-transform: translate3d(-50%, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+  z-index: 9999 !important;
+}
+
+/* Never truncate usernames in the social UI. React currently sets ellipsis inline,
+   so these !important rules intentionally override it. */
+.home-stack [style*="text-overflow"] {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Keep friend rows usable when a full username and invite button share the row. */
+@media (max-width: 520px) {
+  .home-stack [style*="justify-content: space-between"] {
+    min-width: 0;
+  }
+
+  .home-stack [style*="text-overflow"] {
+    line-height: 1.25;
+  }
+}
