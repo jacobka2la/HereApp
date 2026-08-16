@@ -5,100 +5,32 @@ import { useAuth } from '../context/AuthContext';
 import '../avatar-picker.css';
 
 const AVATAR_SIGNUP_FLAG = 'here_needs_avatar_after_signup';
+const AVATAR_PENDING_KEY = 'here_pending_avatar_choice';
 
 export default function AvatarPickerPage() {
   const navigate = useNavigate();
-  const { firebaseUser, profile, authLoading, setAvatarOnce } = useAuth();
-  const [selected, setSelected] = useState('');
-  const [step, setStep] = useState('pick');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const { firebaseUser, profile, authLoading } = useAuth();
+  const [selected, setSelected] = useState(sessionStorage.getItem(AVATAR_PENDING_KEY) || '');
 
   if (authLoading) return null;
   if (!firebaseUser) return <Navigate to="/auth" replace />;
   if (profile?.avatarId) {
     sessionStorage.removeItem(AVATAR_SIGNUP_FLAG);
+    sessionStorage.removeItem(AVATAR_PENDING_KEY);
     return <Navigate to="/" replace />;
   }
   if (sessionStorage.getItem(AVATAR_SIGNUP_FLAG) !== '1') return <Navigate to="/" replace />;
 
-  const selectedAvatar = avatars.find((avatar) => avatar.id === selected) || null;
-
   const selectAvatar = (avatarId) => {
-    if (saving) return;
     setSelected(avatarId);
-    setError('');
+    sessionStorage.setItem(AVATAR_PENDING_KEY, avatarId);
   };
 
-  const goToConfirmStep = () => {
-    if (!selected || saving) return;
-    setError('');
-    setStep('confirm');
+  const reviewAvatar = () => {
+    if (!selected) return;
+    sessionStorage.setItem(AVATAR_PENDING_KEY, selected);
+    navigate('/confirm-avatar');
   };
-
-  const changeAvatar = () => {
-    if (saving) return;
-    setError('');
-    setStep('pick');
-  };
-
-  const confirmAvatar = async () => {
-    if (!selected || !selectedAvatar || saving) return;
-
-    setSaving(true);
-    setError('');
-
-    try {
-      await setAvatarOnce(selected);
-      sessionStorage.removeItem(AVATAR_SIGNUP_FLAG);
-      navigate('/', { replace: true });
-    } catch (err) {
-      if (err?.message === 'AVATAR_ALREADY_SET') {
-        sessionStorage.removeItem(AVATAR_SIGNUP_FLAG);
-        navigate('/', { replace: true });
-        return;
-      }
-      setError('Could Not Save Your Avatar. Try Again.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (step === 'confirm' && selectedAvatar) {
-    return (
-      <main className="avatar-picker-shell avatar-confirm-screen">
-        <div className="avatar-final-card">
-          <img src={selectedAvatar.image} alt="" className="avatar-final-preview" />
-
-          <div className="avatar-final-copy">
-            <h1>Are You Sure?</h1>
-            <p>You Won’t Be Able To Change Your Avatar After This.</p>
-          </div>
-
-          {error ? <div className="error-banner">{error}</div> : null}
-
-          <div className="avatar-final-actions">
-            <button
-              type="button"
-              className="ghost-button avatar-change-button"
-              disabled={saving}
-              onClick={changeAvatar}
-            >
-              Change Avatar
-            </button>
-            <button
-              type="button"
-              className="primary-button avatar-final-confirm"
-              disabled={saving}
-              onClick={confirmAvatar}
-            >
-              {saving ? 'Saving…' : 'Confirm'}
-            </button>
-          </div>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="avatar-picker-shell">
@@ -130,8 +62,6 @@ export default function AvatarPickerPage() {
           })}
         </div>
 
-        {error ? <div className="error-banner">{error}</div> : null}
-
         <div className="avatar-confirm-dock">
           <div className="avatar-confirm-copy">
             <strong>{selected ? 'Avatar Selected' : 'Choose An Avatar'}</strong>
@@ -140,8 +70,8 @@ export default function AvatarPickerPage() {
           <button
             className="primary-button avatar-continue"
             type="button"
-            disabled={!selected || saving}
-            onClick={goToConfirmStep}
+            disabled={!selected}
+            onClick={reviewAvatar}
           >
             Confirm Avatar
           </button>
