@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation, Navigate, Route, Routes } from 'react-router-dom';
+import { useLocation, useNavigate, Navigate, Route, Routes } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
 import FriendsPage from './pages/FriendsPage';
@@ -10,6 +10,7 @@ import AvatarPickerPage from './pages/AvatarPickerPage';
 import AvatarConfirmPage from './pages/AvatarConfirmPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
+import { registerPushNotifications, resetPushRegistration } from './lib/pushNotifications';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -17,6 +18,24 @@ function ScrollToTop() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+
+  return null;
+}
+
+function PushNotificationRegistrar() {
+  const { firebaseUser, profile, authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!firebaseUser?.uid) {
+      resetPushRegistration();
+      return;
+    }
+    if (!profile?.avatarId) return;
+
+    registerPushNotifications(firebaseUser.uid, navigate);
+  }, [firebaseUser?.uid, profile?.avatarId, authLoading, navigate]);
 
   return null;
 }
@@ -34,6 +53,7 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
+      <PushNotificationRegistrar />
 
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
