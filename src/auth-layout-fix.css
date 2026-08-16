@@ -1,0 +1,52 @@
+/* Auth screen spacing pass: keep branding prominent without wasting the top half of the screen. */
+.auth-shell {
+  padding-top: max(34px, calc(env(safe-area-inset-top) + 8px)) !important;
+}
+
+.auth-panel {
+  padding-top: 0 !important;
+}
+
+.auth-brand {
+  gap: 8px !important;
+  margin-bottom: 18px !important;
+}
+
+.auth-logo-clean {
+  width: min(330px, 82vw) !important;
+  margin-top: 0 !important;
+}
+
+.auth-brand p {
+  margin-top: -2px !important;
+}
+
+.auth-heading {
+  margin-bottom: 18px !important;
+}
+
+.auth-heading p {
+  margin-top: 8px !important;
+}
+
+.auth-form {
+  gap: 14px !important;
+}
+
+@media (max-width: 480px) {
+  .auth-shell {
+    padding-top: max(38px, calc(env(safe-area-inset-top) + 10px)) !important;
+  }
+
+  .auth-logo-clean {
+    width: min(320px, 84vw) !important;
+  }
+
+  .auth-brand {
+    margin-bottom: 17px !important;
+  }
+
+  .auth-heading {
+    margin-bottom: 17px !important;
+  }
+}
