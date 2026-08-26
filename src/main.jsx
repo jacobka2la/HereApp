@@ -6,6 +6,7 @@ import './index.css';
 import './polish.css';
 import './mobile-fixes.css';
 import './auth-layout-fix.css';
+import './interactions.css';
 import { AuthProvider } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import StaleCheckinGuard from './components/StaleCheckinGuard';
