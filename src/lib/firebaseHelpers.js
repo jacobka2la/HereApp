@@ -114,13 +114,8 @@ export async function getPublicProfilesByUids(uids = []) {
   const entries = await Promise.all(uniqueUids.map(async (uid) => {
     const snap = await getDoc(doc(db, 'publicProfiles', uid));
     if (!snap.exists()) return null;
-
-    // The document ID is the authoritative Firebase UID. Keying by a stored
-    // `uid` field allowed stale/legacy profile data to attach the wrong avatar
-    // to a friend's row. Always bind the fetched profile to the UID we asked for.
     return [uid, { id: snap.id, ...snap.data(), uid }];
   }));
-
   return Object.fromEntries(entries.filter(Boolean));
 }
 
@@ -139,68 +134,43 @@ export function subscribeToHiddenCommentsForUser(uid, callback) {
   return onSnapshot(q, (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))));
 }
 
+function publicProfileFromDoc(profileDoc) {
+  if (!profileDoc) return null;
+  return { id: profileDoc.id, ...profileDoc.data(), uid: profileDoc.id };
+}
+
 export async function findUserByUsername(username) {
   const clean = username.trim().toLowerCase();
   if (!clean) return null;
   const usernameQuery = query(collection(db, 'publicProfiles'), where('username', '==', clean));
   const usernameSnap = await getDocs(usernameQuery);
-  if (!usernameSnap.empty) { const first = usernameSnap.docs[0]; return { id: first.id, ...first.data() }; }
+  if (!usernameSnap.empty) return publicProfileFromDoc(usernameSnap.docs[0]);
   const displayQuery = query(collection(db, 'publicProfiles'), where('displayUsernameLower', '==', clean));
   const displaySnap = await getDocs(displayQuery);
   if (displaySnap.empty) return null;
-  const first = displaySnap.docs[0];
-  return { id: first.id, ...first.data() };
+  return publicProfileFromDoc(displaySnap.docs[0]);
 }
 
 export async function sendFriendRequest({ fromUid, fromUsername, toUid, toUsername }) {
   if (!fromUid || !toUid || fromUid === toUid) throw new Error('INVALID_REQUEST');
-
   const safeFromUsername = String(fromUsername || '').trim();
   const safeToUsername = String(toUsername || '').trim();
   const directRequestId = `${fromUid}_${toUid}`;
   const reverseRequestId = `${toUid}_${fromUid}`;
   const friendshipId = [fromUid, toUid].sort().join('_');
-
   const [friendshipSnap, directSnap, reverseSnap] = await Promise.all([
     getDoc(doc(db, 'friendships', friendshipId)),
     getDoc(doc(db, 'friendRequests', directRequestId)),
     getDoc(doc(db, 'friendRequests', reverseRequestId)),
   ]);
-
   if (friendshipSnap.exists()) throw new Error('ALREADY_FRIENDS');
   if (directSnap.exists() && directSnap.data()?.status === 'pending') throw new Error('REQUEST_ALREADY_SENT');
-
   if (reverseSnap.exists() && reverseSnap.data()?.status === 'pending') {
-    await respondToFriendRequest({
-      requestId: reverseRequestId,
-      fromUid: toUid,
-      fromUsername: safeToUsername,
-      toUid: fromUid,
-      toUsername: safeFromUsername,
-      status: 'accepted',
-    });
+    await respondToFriendRequest({ requestId: reverseRequestId, fromUid: toUid, fromUsername: safeToUsername, toUid: fromUid, toUsername: safeFromUsername, status: 'accepted' });
     return { status: 'accepted_existing_request' };
   }
-
-  await setDoc(doc(db, 'friendRequests', directRequestId), {
-    fromUid,
-    fromUsername: safeFromUsername,
-    toUid,
-    toUsername: safeToUsername.toLowerCase(),
-    status: 'pending',
-    createdAt: serverTimestamp(),
-    createdAtMillis: Date.now(),
-  });
-
-  createNotification({
-    toUid,
-    type: 'friend_request',
-    title: 'New Friend Request',
-    body: `@${safeFromUsername} requested you.`,
-    fromUid,
-    fromUsername: safeFromUsername,
-  });
-
+  await setDoc(doc(db, 'friendRequests', directRequestId), { fromUid, fromUsername: safeFromUsername, toUid, toUsername: safeToUsername.toLowerCase(), status: 'pending', createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  createNotification({ toUid, type: 'friend_request', title: 'New Friend Request', body: `@${safeFromUsername} requested you.`, fromUid, fromUsername: safeFromUsername });
   return { status: 'sent' };
 }
 
@@ -263,26 +233,44 @@ export async function leaveBar(uid) {
 }
 
 export async function updateVibe({ uid, username, barId, vibe }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'vibes', `${uid}_${barId}_${dayKey}`), { uid, username, barId, vibe, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
-export async function updateCover({ uid, username, barId, range }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'coverReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
-export async function updateLineLength({ uid, username, barId, lineLength }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'lineReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, lineLength, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
-export async function addComment({ uid, username, avatarId = '', barId, text }) { await addDoc(collection(db, 'comments'), { uid, username, avatarId, barId, text, hidden: false, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
-export async function deleteCommentById(commentId) { await deleteDoc(doc(db, 'comments', commentId)); }
-export async function hideCommentForUser({ uid, commentId }) { await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), { uid, commentId, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }); }
-export async function reportComment({ reporterUid, reporterUsername, commentId, commentOwnerUid, commentOwnerUsername, commentText, barId, barName }) { await addDoc(collection(db, 'reports'), { type: 'comment', dayKey: getCurrentDayKey(), commentId, commentOwnerUid: commentOwnerUid || '', commentOwnerUsername: commentOwnerUsername || '', commentText: commentText || '', barId: barId || '', barName: barName || '', reporterUid: reporterUid || '', reporterUsername: reporterUsername || '', status: 'open', createdAt: serverTimestamp(), createdAtMillis: Date.now() }); if (reporterUid && commentId) await hideCommentForUser({ uid: reporterUid, commentId }); }
-export async function hideComment(commentId) { await setDoc(doc(db, 'comments', commentId), { hidden: true, hiddenAt: serverTimestamp(), hiddenAtMillis: Date.now() }, { merge: true }); }
-export async function blockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayUnion(blockedUid) }); }
-export async function unblockUser({ blockerUid, blockedUid }) { await updateDoc(doc(db, 'users', blockerUid), { blockedUsers: arrayRemove(blockedUid) }); }
-export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message }) {
-  const now = Date.now();
-  const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`);
-  const cooldownSnap = await getDoc(cooldownRef);
-  if (cooldownSnap.exists()) {
-    const lastSentAtMillis = cooldownSnap.data()?.lastSentAtMillis ?? 0;
-    if (lastSentAtMillis && now - lastSentAtMillis < INVITE_COOLDOWN_MS) throw new Error('COOLDOWN');
-  }
-  await addDoc(collection(db, 'invites'), { fromUid, fromUsername, toUid, toUsername: String(toUsername || '').trim().toLowerCase(), barId, barName, message, status: 'pending', createdAt: serverTimestamp(), createdAtMillis: now });
-  await setDoc(cooldownRef, { fromUid, toUid, barId, lastSentAt: serverTimestamp(), lastSentAtMillis: now });
-  createNotification({ toUid, type: 'invite', title: `@${fromUsername} invited you out`, body: message || `Come to ${barName}, it's packed!`, fromUid, fromUsername, barId, barName });
+export async function updateCover({ uid, username, barId, range }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'covers', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
+export async function updateLine({ uid, username, barId, range }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'lines', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
+
+export async function addComment({ uid, username, barId, text }) {
+  const clean = text.trim();
+  if (!clean) return;
+  await addDoc(collection(db, 'comments'), { uid, username, barId, text: clean, dayKey: getCurrentDayKey(), createdAt: serverTimestamp() });
 }
-export async function dismissInvite(inviteId) { await setDoc(doc(db, 'invites', inviteId), { status: 'dismissed', updatedAt: serverTimestamp(), updatedAtMillis: Date.now() }, { merge: true }); }
-export async function toggleReaction({ uid, username, commentId, emoji }) { const ref = doc(db, 'commentReactions', `${commentId}_${uid}`); const snap = await getDoc(ref); if (snap.exists() && snap.data().emoji === emoji) { await deleteDoc(ref); return; } await setDoc(ref, { uid, username, commentId, emoji, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
+
+export async function reportContent({ reporterUid, targetType, targetId, reason, details = '' }) { await addDoc(collection(db, 'reports'), { reporterUid, targetType, targetId, reason, details, createdAt: serverTimestamp() }); }
+export async function hideComment({ uid, commentId }) { await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), { uid, commentId, createdAt: serverTimestamp() }); }
+export async function unhideComment({ uid, commentId }) { await deleteDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`)); }
+export async function blockUser({ uid, targetUid }) { await updateDoc(doc(db, 'users', uid), { blockedUsers: arrayUnion(targetUid) }); }
+export async function unblockUser({ uid, targetUid }) { await updateDoc(doc(db, 'users', uid), { blockedUsers: arrayRemove(targetUid) }); }
+
+export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message = '' }) {
+  const now = Date.now();
+  const inviteId = `${fromUid}_${toUid}_${barId}`;
+  const inviteRef = doc(db, 'invites', inviteId);
+  const inviteSnap = await getDoc(inviteRef);
+  const previousSentAt = inviteSnap.data()?.sentAtMillis ?? 0;
+  if (inviteSnap.exists() && now - previousSentAt < INVITE_COOLDOWN_MS) throw new Error('INVITE_COOLDOWN');
+  await setDoc(inviteRef, { fromUid, fromUsername, toUid, toUsername, barId, barName, message, status: 'pending', sentAt: serverTimestamp(), sentAtMillis: now, createdAt: inviteSnap.exists() ? inviteSnap.data()?.createdAt ?? serverTimestamp() : serverTimestamp() }, { merge: true });
+  createNotification({ toUid, type: 'bar_invite', title: `@${fromUsername} invited you`, body: message || `Come to ${barName}.`, fromUid, fromUsername, barId, barName });
+}
+
+export async function dismissInvite(inviteId) { await setDoc(doc(db, 'invites', inviteId), { status: 'dismissed', dismissedAt: serverTimestamp(), dismissedAtMillis: Date.now() }, { merge: true }); }
+
+export async function toggleCommentReaction({ uid, username, commentId, emoji }) {
+  const reactionId = `${commentId}_${uid}_${emoji}`;
+  const ref = doc(db, 'commentReactions', reactionId);
+  const snap = await getDoc(ref);
+  if (snap.exists()) await deleteDoc(ref);
+  else await setDoc(ref, { uid, username, commentId, emoji, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+
+export function subscribeToCommentReactions(commentIds, callback) {
+  if (!commentIds?.length) { callback([]); return () => {}; }
+  const q = query(collection(db, 'commentReactions'), where('dayKey', '==', getCurrentDayKey()));
+  return onSnapshot(q, (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => commentIds.includes(item.commentId))));
+}
