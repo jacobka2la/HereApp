@@ -1,18 +1,26 @@
-/* App-wide interaction layer. Loaded last so it overrides older no-animation polish rules. */
+/* App-wide tactile interaction layer. Loaded last so it overrides older no-animation polish rules. */
 
 :root {
-  --press-scale: 0.965;
-  --press-scale-soft: 0.985;
-  --motion-fast: 110ms;
-  --motion-med: 180ms;
-  --motion-slow: 260ms;
-  --motion-ease: cubic-bezier(.2,.8,.2,1);
+  --press-scale: .965;
+  --press-scale-deep: .952;
+  --press-scale-soft: .982;
+  --motion-tap: 80ms;
+  --motion-fast: 120ms;
+  --motion-med: 190ms;
+  --motion-slow: 270ms;
+  --motion-ease: cubic-bezier(.22,.61,.36,1);
   --motion-spring: cubic-bezier(.16,1,.3,1);
+  --focus-ring: 0 0 0 3px rgba(91,255,138,.18), 0 0 0 1px rgba(91,255,138,.55);
 }
 
+/* Kill browser tap flash and make taps respond immediately on mobile. */
 button,
 a,
 [role='button'],
+input,
+textarea,
+select,
+label,
 .bar-card,
 .bottom-nav-item,
 .select-chip,
@@ -28,6 +36,7 @@ a,
   touch-action: manipulation;
 }
 
+/* Main pressable controls. */
 button,
 [role='button'],
 .primary-button,
@@ -40,23 +49,22 @@ button,
 .reaction-chip,
 .bottom-nav-item,
 .bar-card,
-.legal-check,
-a[href] {
+.legal-check {
   transform: translateZ(0) scale(1);
   transform-origin: center;
+  backface-visibility: hidden;
   transition:
-    transform var(--motion-fast) var(--motion-ease),
+    transform var(--motion-med) var(--motion-spring),
     background-color var(--motion-med) var(--motion-ease),
     border-color var(--motion-med) var(--motion-ease),
     color var(--motion-med) var(--motion-ease),
     box-shadow var(--motion-med) var(--motion-ease),
     opacity var(--motion-med) var(--motion-ease),
     filter var(--motion-med) var(--motion-ease) !important;
-  will-change: transform;
 }
 
 button:not(:disabled):active,
-[role='button']:active,
+[role='button']:not([aria-disabled='true']):active,
 .primary-button:not(:disabled):active,
 .ghost-button:not(:disabled):active,
 .text-button:not(:disabled):active,
@@ -64,50 +72,121 @@ button:not(:disabled):active,
 .bar-back-button:active,
 .detail-checkin-button:not(:disabled):active,
 .select-chip:not(:disabled):active,
-.reaction-chip:not(:disabled):active,
-.bottom-nav-item:active,
-.bar-card:active,
-.legal-check:active,
-a[href]:active {
+.reaction-chip:not(:disabled):active {
   transform: translateZ(0) scale(var(--press-scale)) !important;
-  filter: brightness(.93);
+  filter: brightness(.88) saturate(1.08) !important;
+  transition:
+    transform var(--motion-tap) cubic-bezier(.3,0,.4,1),
+    filter var(--motion-tap) linear !important;
+}
+
+/* Big primary actions get the strongest physical press. */
+.primary-button:not(:disabled):active,
+.auth-submit:not(:disabled):active,
+.detail-checkin-button:not(:disabled):active {
+  transform: translateZ(0) scale(var(--press-scale-deep)) !important;
+}
+
+/* Cards press more softly so scrolling never feels jumpy. */
+.bar-card:active,
+.legal-check:active {
+  transform: translateZ(0) scale(var(--press-scale-soft)) !important;
+  filter: brightness(.94) !important;
+  transition-duration: var(--motion-tap) !important;
+}
+
+/* Bottom nav gets its own snappy motion + icon response. */
+.bottom-nav-item {
+  transition:
+    transform 170ms var(--motion-spring),
+    background-color 180ms var(--motion-ease),
+    color 180ms var(--motion-ease),
+    opacity 180ms var(--motion-ease),
+    box-shadow 180ms var(--motion-ease) !important;
+}
+.bottom-nav-item:active {
+  transform: translateY(1px) scale(.91) !important;
+  transition-duration: 70ms !important;
+}
+.bottom-nav-item svg {
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform 180ms var(--motion-spring), opacity 180ms ease !important;
+}
+.bottom-nav-item:active svg {
+  transform: scale(.84);
+}
+.bottom-nav-item-active {
+  box-shadow: 0 5px 16px rgba(91,255,138,.18);
+}
+.bottom-nav-item-active svg {
+  transform: scale(1.06);
+}
+
+/* Soft light bloom during a press. */
+.primary-button,
+.ghost-button,
+.auth-submit,
+.detail-checkin-button,
+.select-chip,
+.reaction-chip {
+  position: relative;
+  overflow: hidden;
+}
+.primary-button::after,
+.ghost-button::after,
+.auth-submit::after,
+.detail-checkin-button::after,
+.select-chip::after,
+.reaction-chip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,.22), transparent 60%);
+  transform: scale(.72);
+  transition: opacity 210ms ease, transform 250ms var(--motion-ease) !important;
+}
+.primary-button:active::after,
+.ghost-button:active::after,
+.auth-submit:active::after,
+.detail-checkin-button:active::after,
+.select-chip:active::after,
+.reaction-chip:active::after {
+  opacity: 1;
+  transform: scale(1.18);
   transition-duration: 70ms !important;
 }
 
-.bar-card:active,
-.legal-check:active,
-.bottom-nav-item:active,
-a[href].bar-card:active {
-  transform: translateZ(0) scale(var(--press-scale-soft)) !important;
+/* Selected chips feel settled rather than just changing color. */
+.select-chip-active,
+.reaction-chip-active,
+.select-chip[aria-pressed='true'],
+.reaction-chip[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 1px rgba(91,255,138,.14), 0 5px 15px rgba(0,0,0,.16);
 }
 
+/* Disabled/loading controls never look clickable or retain pressed transforms. */
 button:disabled,
 .primary-button:disabled,
 .ghost-button:disabled,
 .auth-submit:disabled,
 .detail-checkin-button:disabled,
 .select-chip:disabled,
-.reaction-chip:disabled {
+.reaction-chip:disabled,
+[role='button'][aria-disabled='true'] {
   cursor: default;
-  opacity: .62;
+  opacity: .58;
   transform: none !important;
-  filter: saturate(.72);
+  filter: saturate(.72) !important;
+  box-shadow: none;
 }
 
-button:focus-visible,
-a[href]:focus-visible,
-[role='button']:focus-visible,
-.select-chip:focus-visible,
-.reaction-chip:focus-visible,
-.legal-check:focus-within,
-input:focus-visible,
-textarea:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(91,255,138,.14), 0 0 0 1px rgba(91,255,138,.5) !important;
-}
-
+/* Inputs visibly wake up on focus without moving the layout. */
 input,
 textarea,
+select,
 .search-wrap input,
 .auth-form input,
 .comment-form textarea {
@@ -116,21 +195,33 @@ textarea,
     box-shadow var(--motion-med) var(--motion-ease),
     background-color var(--motion-med) var(--motion-ease) !important;
 }
-
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   background-color: #0b120e;
+  border-color: rgba(91,255,138,.5) !important;
 }
 
-.bottom-nav-item-active {
-  box-shadow: 0 5px 16px rgba(91,255,138,.18);
+/* Keyboard focus is obvious; ordinary taps don't leave a sticky ring. */
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible,
+.select-chip:focus-visible,
+.reaction-chip:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring) !important;
 }
 
-.select-chip-active,
-.reaction-chip-active {
-  box-shadow: inset 0 0 0 1px rgba(91,255,138,.12), 0 5px 15px rgba(0,0,0,.14);
+/* Checkbox interaction gets a real press + checked pop. */
+.legal-check {
+  transition:
+    transform 180ms var(--motion-spring),
+    background-color 180ms var(--motion-ease),
+    border-color 180ms var(--motion-ease) !important;
 }
-
 .legal-check input[type='checkbox'] {
   transition:
     transform var(--motion-fast) var(--motion-spring),
@@ -138,65 +229,63 @@ textarea:focus {
     border-color var(--motion-med) var(--motion-ease),
     box-shadow var(--motion-med) var(--motion-ease) !important;
 }
-
-.legal-check input[type='checkbox']:active {
-  transform: scale(.88);
+.legal-check:active input[type='checkbox'] {
+  transform: scale(.84);
 }
-
 .legal-check input[type='checkbox']::after {
-  transition: transform 150ms var(--motion-spring) !important;
+  transition: transform 170ms var(--motion-spring) !important;
 }
-
 .legal-check input[type='checkbox']:checked {
-  animation: here-check-pop 220ms var(--motion-spring);
+  animation: here-check-pop 230ms var(--motion-spring) !important;
 }
 
+/* Feedback appearing after an action should feel deliberate, not blink into existence. */
 .detail-feedback,
 .error-banner,
 .info-banner,
 .empty-state {
-  animation: here-feedback-in 220ms var(--motion-spring);
+  animation: here-feedback-in 230ms var(--motion-spring) both !important;
 }
 
-.comment-card,
-.bar-card,
-.detail-card,
-.hero-card,
-.home-stack > div {
-  backface-visibility: hidden;
+/* Small page/card entrance motion. Short enough that navigation still feels instant. */
+.bar-detail-page > *,
+.home-stack > * {
+  animation: here-content-in 250ms var(--motion-ease) both !important;
 }
+.home-stack > *:nth-child(2) { animation-delay: 20ms !important; }
+.home-stack > *:nth-child(3) { animation-delay: 40ms !important; }
+.home-stack > *:nth-child(4) { animation-delay: 60ms !important; }
 
+/* Hover only exists for real mouse/trackpad devices, never touchscreen emulation. */
 @media (hover:hover) and (pointer:fine) {
   button:not(:disabled):hover,
   .primary-button:not(:disabled):hover,
   .ghost-button:not(:disabled):hover,
+  .text-button:not(:disabled):hover,
   .auth-submit:not(:disabled):hover,
   .detail-checkin-button:not(:disabled):hover,
   .select-chip:not(:disabled):hover,
   .reaction-chip:not(:disabled):hover,
   .bar-back-button:hover {
-    transform: translateY(-1px) scale(1.015);
+    transform: translateY(-1px) scale(1.012);
     filter: brightness(1.06);
   }
 
   .bar-card:hover {
-    transform: translateY(-2px) scale(1.008);
+    transform: translateY(-2px) scale(1.006);
     border-color: rgba(91,255,138,.18);
   }
 
   .bottom-nav-item:hover:not(.bottom-nav-item-active) {
+    transform: translateY(-1px);
     background: rgba(255,255,255,.055);
-    color: rgba(239,255,244,.9);
-  }
-
-  a[href]:not(.bar-card):not(.bottom-nav-item):hover {
-    filter: brightness(1.08);
+    color: rgba(239,255,244,.92);
   }
 }
 
 @keyframes here-check-pop {
-  0% { transform: scale(.82); }
-  58% { transform: scale(1.1); }
+  0% { transform: scale(.78); }
+  58% { transform: scale(1.13); }
   100% { transform: scale(1); }
 }
 
@@ -205,11 +294,17 @@ textarea:focus {
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes here-content-in {
+  0% { opacity: 0; transform: translateY(5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Accessibility: honor reduced-motion settings. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
 }
