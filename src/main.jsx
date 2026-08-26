@@ -8,13 +8,16 @@ import './mobile-fixes.css';
 import './auth-layout-fix.css';
 import { AuthProvider } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import StaleCheckinGuard from './components/StaleCheckinGuard';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <HashRouter>
         <AuthProvider>
-          <App />
+          <StaleCheckinGuard>
+            <App />
+          </StaleCheckinGuard>
         </AuthProvider>
       </HashRouter>
     </ErrorBoundary>
