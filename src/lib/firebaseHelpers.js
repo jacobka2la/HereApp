@@ -232,21 +232,83 @@ export async function leaveBar(uid) {
   });
 }
 
-export async function updateVibe({ uid, username, barId, vibe }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'vibes', `${uid}_${barId}_${dayKey}`), { uid, username, barId, vibe, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
-export async function updateCover({ uid, username, barId, range }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'covers', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
-export async function updateLine({ uid, username, barId, range }) { const dayKey = getCurrentDayKey(); await setDoc(doc(db, 'lines', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() }); }
+export async function updateVibe({ uid, username, barId, vibe }) {
+  const dayKey = getCurrentDayKey();
+  await setDoc(doc(db, 'vibes', `${uid}_${barId}_${dayKey}`), { uid, username, barId, vibe, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+
+export async function updateCover({ uid, username, barId, range }) {
+  const dayKey = getCurrentDayKey();
+  const payload = { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() };
+  await Promise.all([
+    setDoc(doc(db, 'covers', `${uid}_${barId}_${dayKey}`), payload),
+    setDoc(doc(db, 'coverReports', `${uid}_${barId}_${dayKey}`), payload),
+  ]);
+}
+
+export async function updateLine({ uid, username, barId, range }) {
+  const dayKey = getCurrentDayKey();
+  await setDoc(doc(db, 'lines', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+
+export async function updateLineLength({ uid, username, barId, lineLength }) {
+  const dayKey = getCurrentDayKey();
+  const now = Date.now();
+  await Promise.all([
+    setDoc(doc(db, 'lines', `${uid}_${barId}_${dayKey}`), { uid, username, barId, range: lineLength, lineLength, dayKey, createdAt: serverTimestamp(), createdAtMillis: now }),
+    setDoc(doc(db, 'lineReports', `${uid}_${barId}_${dayKey}`), { uid, username, barId, lineLength, dayKey, createdAt: serverTimestamp(), createdAtMillis: now }),
+  ]);
+}
 
 export async function addComment({ uid, username, barId, text }) {
   const clean = text.trim();
   if (!clean) return;
-  await addDoc(collection(db, 'comments'), { uid, username, barId, text: clean, dayKey: getCurrentDayKey(), createdAt: serverTimestamp() });
+  await addDoc(collection(db, 'comments'), { uid, username, barId, text: clean, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
 
-export async function reportContent({ reporterUid, targetType, targetId, reason, details = '' }) { await addDoc(collection(db, 'reports'), { reporterUid, targetType, targetId, reason, details, createdAt: serverTimestamp() }); }
-export async function hideComment({ uid, commentId }) { await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), { uid, commentId, createdAt: serverTimestamp() }); }
-export async function unhideComment({ uid, commentId }) { await deleteDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`)); }
-export async function blockUser({ uid, targetUid }) { await updateDoc(doc(db, 'users', uid), { blockedUsers: arrayUnion(targetUid) }); }
-export async function unblockUser({ uid, targetUid }) { await updateDoc(doc(db, 'users', uid), { blockedUsers: arrayRemove(targetUid) }); }
+export async function reportContent({ reporterUid, targetType, targetId, reason, details = '' }) {
+  await addDoc(collection(db, 'reports'), { reporterUid, targetType, targetId, reason, details, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+
+export async function reportComment({ reporterUid, reporterUsername = '', commentId, commentOwnerUid = '', commentOwnerUsername = '', commentText = '', barId = '', barName = '' }) {
+  await addDoc(collection(db, 'reports'), {
+    reporterUid,
+    reporterUsername,
+    targetType: 'comment',
+    targetId: commentId,
+    commentOwnerUid,
+    commentOwnerUsername,
+    commentText,
+    barId,
+    barName,
+    createdAt: serverTimestamp(),
+    createdAtMillis: Date.now(),
+  });
+  await setDoc(doc(db, 'hiddenComments', `${reporterUid}_${commentId}`), { uid: reporterUid, commentId, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+
+export async function hideComment({ uid, commentId }) {
+  await setDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`), { uid, commentId, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+
+export async function unhideComment({ uid, commentId }) {
+  await deleteDoc(doc(db, 'hiddenComments', `${uid}_${commentId}`));
+}
+
+export async function blockUser({ uid, targetUid, blockerUid, blockedUid }) {
+  const resolvedUid = uid || blockerUid;
+  const resolvedTargetUid = targetUid || blockedUid;
+  if (!resolvedUid || !resolvedTargetUid) throw new Error('INVALID_BLOCK_REQUEST');
+  await updateDoc(doc(db, 'users', resolvedUid), { blockedUsers: arrayUnion(resolvedTargetUid) });
+}
+
+export async function unblockUser({ uid, targetUid }) {
+  await updateDoc(doc(db, 'users', uid), { blockedUsers: arrayRemove(targetUid) });
+}
+
+export async function deleteCommentById(commentId) {
+  await deleteDoc(doc(db, 'comments', commentId));
+}
 
 export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message = '' }) {
   const now = Date.now();
@@ -259,7 +321,9 @@ export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, bar
   createNotification({ toUid, type: 'bar_invite', title: `@${fromUsername} invited you`, body: message || `Come to ${barName}.`, fromUid, fromUsername, barId, barName });
 }
 
-export async function dismissInvite(inviteId) { await setDoc(doc(db, 'invites', inviteId), { status: 'dismissed', dismissedAt: serverTimestamp(), dismissedAtMillis: Date.now() }, { merge: true }); }
+export async function dismissInvite(inviteId) {
+  await setDoc(doc(db, 'invites', inviteId), { status: 'dismissed', dismissedAt: serverTimestamp(), dismissedAtMillis: Date.now() }, { merge: true });
+}
 
 export async function toggleCommentReaction({ uid, username, commentId, emoji }) {
   const reactionId = `${commentId}_${uid}_${emoji}`;
@@ -267,6 +331,17 @@ export async function toggleCommentReaction({ uid, username, commentId, emoji })
   const snap = await getDoc(ref);
   if (snap.exists()) await deleteDoc(ref);
   else await setDoc(ref, { uid, username, commentId, emoji, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+}
+
+export async function toggleReaction({ uid, username, commentId, emoji }) {
+  const dayKey = getCurrentDayKey();
+  const q = query(collection(db, 'commentReactions'), where('uid', '==', uid), where('commentId', '==', commentId));
+  const snap = await getDocs(q);
+  const existingSame = snap.docs.find((item) => item.data()?.emoji === emoji);
+  await Promise.all(snap.docs.map((item) => deleteDoc(item.ref)));
+  if (!existingSame) {
+    await setDoc(doc(db, 'commentReactions', `${commentId}_${uid}`), { uid, username, commentId, emoji, dayKey, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  }
 }
 
 export function subscribeToCommentReactions(commentIds, callback) {
