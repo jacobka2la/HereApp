@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { getCurrentDayKey } from '../lib/day';
@@ -22,13 +22,14 @@ async function clearStaleCheckIn(uid) {
       const checkinSnap = await transaction.get(checkinRef);
 
       if (checkinSnap.exists()) {
+        const expiredAtMillis = Date.now();
         transaction.set(checkinRef, {
           active: false,
           autoExpired: true,
           autoExpiredAt: serverTimestamp(),
-          autoExpiredAtMillis: Date.now(),
+          autoExpiredAtMillis: expiredAtMillis,
           updatedAt: serverTimestamp(),
-          updatedAtMillis: Date.now(),
+          updatedAtMillis: expiredAtMillis,
         }, { merge: true });
       }
     }
