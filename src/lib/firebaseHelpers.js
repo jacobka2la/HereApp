@@ -128,6 +128,19 @@ export function subscribeToUserBarStats(uid, callback) {
   });
 }
 
+export function subscribeToUserCheckins(uid, callback) {
+  if (!uid) { callback([]); return () => {}; }
+  const q = query(collection(db, 'checkins'), where('uid', '==', uid));
+  return onSnapshot(q, (snap) => {
+    const items = snap.docs.map((item) => ({
+      id: item.id,
+      ...item.data(),
+      checkedInAtMillis: item.data().checkedInAt?.toMillis?.() ?? item.data().checkedInAtMillis ?? item.data().createdAt?.toMillis?.() ?? 0,
+    })).sort((a, b) => b.checkedInAtMillis - a.checkedInAtMillis);
+    callback(items);
+  });
+}
+
 export function subscribeToHiddenCommentsForUser(uid, callback) {
   if (!uid) { callback([]); return () => {}; }
   const q = query(collection(db, 'hiddenComments'), where('uid', '==', uid));
@@ -263,7 +276,7 @@ export async function updateLineLength({ uid, username, barId, lineLength }) {
 export async function addComment({ uid, username, barId, text }) {
   const clean = text.trim();
   if (!clean) return;
-  await addDoc(collection(db, 'comments'), { uid, username, barId, text: clean, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  await addDoc(collection(db, 'comments'), { uid, username, barId, text: clean, hidden: false, dayKey: getCurrentDayKey(), createdAt: serverTimestamp(), createdAtMillis: Date.now() });
 }
 
 export async function reportContent({ reporterUid, targetType, targetId, reason, details = '' }) {
