@@ -3,26 +3,41 @@ import Layout from '../components/Layout';
 import UserAvatar from '../components/UserAvatar';
 import { useAuth } from '../context/AuthContext';
 import { msuBars } from '../lib/bars';
-import { subscribeToUserBarStats } from '../lib/firebaseHelpers';
-
-function getDayStamp(millis) {
-  const date = new Date(millis);
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-}
+import { getCurrentDayKey } from '../lib/day';
+import { subscribeToUserBarStats, subscribeToUserCheckins } from '../lib/firebaseHelpers';
 
 const cardStyle = { background: 'rgba(5, 15, 8, 0.88)', border: '1px solid rgba(120, 255, 170, 0.12)', borderRadius: '28px', padding: '22px', boxShadow: '0 18px 45px rgba(0, 0, 0, 0.22)' };
 const statStyle = { padding: '16px', borderRadius: '20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(120, 255, 170, 0.1)' };
+
+function dayKeyToDate(dayKey) {
+  return new Date(`${dayKey}T00:00:00Z`);
+}
+
+function previousDayKey(dayKey) {
+  const date = dayKeyToDate(dayKey);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
 
 export default function HomeTabPage() {
   const { firebaseUser, profile, logOut, deleteAccount } = useAuth();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [userBarStats, setUserBarStats] = useState([]);
+  const [userCheckins, setUserCheckins] = useState([]);
 
   useEffect(() => {
-    if (!firebaseUser?.uid) { setUserBarStats([]); return; }
-    const unsubscribe = subscribeToUserBarStats(firebaseUser.uid, setUserBarStats);
-    return () => unsubscribe();
+    if (!firebaseUser?.uid) {
+      setUserBarStats([]);
+      setUserCheckins([]);
+      return;
+    }
+    const unsubscribeBarStats = subscribeToUserBarStats(firebaseUser.uid, setUserBarStats);
+    const unsubscribeCheckins = subscribeToUserCheckins(firebaseUser.uid, setUserCheckins);
+    return () => {
+      unsubscribeBarStats();
+      unsubscribeCheckins();
+    };
   }, [firebaseUser?.uid]);
 
   const barHistory = useMemo(() => [...userBarStats].map((entry) => {
@@ -33,11 +48,29 @@ export default function HomeTabPage() {
   const totalVisits = useMemo(() => userBarStats.reduce((sum, entry) => sum + (entry.visitCount || 0), 0), [userBarStats]);
   const uniqueBars = userBarStats.length;
   const topSpot = barHistory[0]?.name || 'No Visits Yet';
-  const uniqueVisitDays = useMemo(() => [...new Set(userBarStats.map((entry) => entry.lastVisitAtMillis).filter(Boolean).map(getDayStamp))].sort((a, b) => new Date(b) - new Date(a)), [userBarStats]);
-  const currentStreak = useMemo(() => { if (!uniqueVisitDays.length) return 0; const daySet = new Set(uniqueVisitDays); let streak = 0; const cursor = new Date(); cursor.setHours(0,0,0,0); while (daySet.has(getDayStamp(cursor.getTime()))) { streak += 1; cursor.setDate(cursor.getDate()-1); } return streak; }, [uniqueVisitDays]);
-  const now = new Date();
-  const nightsThisWeek = useMemo(() => { const weekAgo = new Date(); weekAgo.setDate(now.getDate()-7); return uniqueVisitDays.filter((stamp) => new Date(stamp) >= weekAgo).length; }, [uniqueVisitDays]);
-  const nightsThisMonth = useMemo(() => uniqueVisitDays.filter((stamp) => { const date = new Date(stamp); return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear(); }).length, [uniqueVisitDays]);
+  const uniqueVisitDays = useMemo(() => [...new Set(userCheckins.map((entry) => entry.dayKey || (entry.checkedInAtMillis ? getCurrentDayKey(new Date(entry.checkedInAtMillis)) : '')).filter(Boolean))].sort().reverse(), [userCheckins]);
+  const currentStreak = useMemo(() => {
+    if (!uniqueVisitDays.length) return 0;
+    const daySet = new Set(uniqueVisitDays);
+    let cursor = getCurrentDayKey();
+    let streak = 0;
+    while (daySet.has(cursor)) {
+      streak += 1;
+      cursor = previousDayKey(cursor);
+    }
+    return streak;
+  }, [uniqueVisitDays]);
+  const currentDayKey = getCurrentDayKey();
+  const currentDayDate = dayKeyToDate(currentDayKey);
+  const nightsThisWeek = useMemo(() => {
+    const weekAgo = new Date(currentDayDate);
+    weekAgo.setUTCDate(weekAgo.getUTCDate() - 6);
+    return uniqueVisitDays.filter((stamp) => dayKeyToDate(stamp) >= weekAgo && dayKeyToDate(stamp) <= currentDayDate).length;
+  }, [uniqueVisitDays, currentDayKey]);
+  const nightsThisMonth = useMemo(() => uniqueVisitDays.filter((stamp) => {
+    const date = dayKeyToDate(stamp);
+    return date.getUTCMonth() === currentDayDate.getUTCMonth() && date.getUTCFullYear() === currentDayDate.getUTCFullYear();
+  }).length, [uniqueVisitDays, currentDayKey]);
   const badges = useMemo(() => { const list=[]; if(uniqueBars>=1)list.push('First Night Out'); if(uniqueBars>=3)list.push('Bar Hopper'); if(totalVisits>=10)list.push('Regular'); if(currentStreak>=3)list.push('Three-Night Streak'); if(uniqueBars>=msuBars.length)list.push('Visited Every Bar'); return list; }, [uniqueBars,totalVisits,currentStreak]);
   const formatVisitTime = (millis) => { if(!millis)return 'Recently'; const date=new Date(millis); if(date.toDateString()===new Date().toDateString()) return `Today At ${date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`; return date.toLocaleDateString([], {month:'short',day:'numeric'}); };
   const handleDeleteAccount = async () => { const confirmed=window.confirm('Are you sure you want to permanently delete your account? This cannot be undone.'); if(!confirmed)return; setDeleting(true); setDeleteError(''); try{await deleteAccount();}catch(error){setDeleteError(error?.code==='auth/requires-recent-login'?'For security, log out and log back in first, then try deleting your account again.':'Could not delete account right now. Please try again.');}finally{setDeleting(false);} };
