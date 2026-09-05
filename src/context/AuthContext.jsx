@@ -150,6 +150,11 @@ export function AuthProvider({ children }) {
     const currentData = userSnap.data();
     if (currentData.avatarId) {
       setProfile(currentData);
+
+      // Repeating the exact same avatar confirmation is safe. This can happen
+      // when a user taps Confirm more than once while the first write finishes.
+      if (currentData.avatarId === avatarId) return;
+
       throw new Error('AVATAR_ALREADY_SET');
     }
 
