@@ -11,6 +11,12 @@ export const demoFriends = [
   { id: 'demo-8', uid: 'demo-8', username: 'cole6', avatarId: 'avatar-1', activeCheckin: { barId: 'crunchys', checkedInAtMillis: Date.now() - 14 * 60 * 1000, active: true }, barName: "Crunchy's" },
 ];
 
+export const demoRequests = [
+  { id: 'req-1', uid: 'req-1', username: 'emily4', avatarId: 'avatar-4' },
+  { id: 'req-2', uid: 'req-2', username: 'mason22', avatarId: 'avatar-3' },
+  { id: 'req-3', uid: 'req-3', username: 'grace7', avatarId: 'avatar-2' },
+];
+
 export const demoStats = {
   totalVisits: 47,
   uniqueBars: 8,
@@ -30,3 +36,40 @@ export const demoStats = {
     { barId: 'louhas', name: 'Lou & Harry’s', neighborhood: 'East Lansing', visits: 2, lastVisitedAt: Date.now() - 23 * 24 * 60 * 60 * 1000 },
   ],
 };
+
+const baseComments = [
+  { username: 'maddie2', avatarId: 'avatar-2', text: 'Line moved way faster than it looked. Inside is packed.', minutesAgo: 4, reactions: { '🔥': 12, '👀': 4, '🍻': 8 } },
+  { username: 'ryan17', avatarId: 'avatar-3', text: 'DJ is actually cooking tonight.', minutesAgo: 8, reactions: { '🔥': 17, '👀': 2, '🍻': 11 } },
+  { username: 'sophia8', avatarId: 'avatar-4', text: 'Cover was $10 when we got here.', minutesAgo: 13, reactions: { '🔥': 5, '👀': 9, '🍻': 3 } },
+  { username: 'cole6', avatarId: 'avatar-1', text: 'Main floor is full but the back has room.', minutesAgo: 19, reactions: { '🔥': 4, '👀': 6, '🍻': 7 } },
+];
+
+const barOverrides = {
+  harpers: { count: 84, vibe: 'Packed & Loud', cover: '$10', coverReports: 19, line: 'Long line', lineReports: 16, trend: [28, 35, 47, 58, 66, 77, 84] },
+  ricks: { count: 72, vibe: 'Packed & Loud', cover: '$10–15', coverReports: 15, line: 'Long line', lineReports: 13, trend: [21, 29, 38, 49, 57, 65, 72] },
+  dublin: { count: 51, vibe: 'Busy', cover: '$5–10', coverReports: 11, line: 'Short line', lineReports: 9, trend: [18, 22, 28, 34, 41, 47, 51] },
+  landshark: { count: 63, vibe: 'Busy', cover: '$5', coverReports: 14, line: 'Short line', lineReports: 12, trend: [25, 31, 37, 44, 50, 58, 63] },
+  'tin-can': { count: 39, vibe: 'Good Crowd', cover: 'No cover', coverReports: 8, line: 'No line', lineReports: 7, trend: [14, 18, 22, 28, 31, 35, 39] },
+  crunchys: { count: 46, vibe: 'Good Crowd', cover: '$5', coverReports: 9, line: 'Short line', lineReports: 8, trend: [12, 19, 23, 29, 34, 40, 46] },
+  fieldhouse: { count: 34, vibe: 'Chill', cover: 'No cover', coverReports: 6, line: 'No line', lineReports: 5, trend: [9, 13, 17, 21, 26, 30, 34] },
+  louhas: { count: 29, vibe: 'Chill', cover: 'No cover', coverReports: 5, line: 'No line', lineReports: 4, trend: [8, 10, 14, 18, 22, 25, 29] },
+};
+
+export function getDemoBarData(barId) {
+  const data = barOverrides[barId] || { count: 42, vibe: 'Busy', cover: '$5–10', coverReports: 8, line: 'Short line', lineReports: 7, trend: [12, 17, 21, 27, 31, 36, 42] };
+  const labels = ['60m', '50m', '40m', '30m', '20m', '10m', 'Now'];
+  const comments = baseComments.map((comment, index) => ({
+    id: `${barId}-comment-${index + 1}`,
+    uid: `${barId}-demo-user-${index + 1}`,
+    username: comment.username,
+    avatarId: comment.avatarId,
+    text: comment.text,
+    createdAtMillis: Date.now() - comment.minutesAgo * 60 * 1000,
+    reactions: comment.reactions,
+  }));
+  return {
+    ...data,
+    trendSeries: data.trend.map((crowd, index) => ({ label: labels[index], crowd })),
+    comments,
+  };
+}
