@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { getAvatarById } from '../lib/avatars';
 
 const sizeMap = {
@@ -8,6 +9,7 @@ const sizeMap = {
 };
 
 export default function UserAvatar({ username = '', avatarId = '', size = 'md' }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const avatar = avatarId ? getAvatarById(avatarId) : null;
   const clean = String(username || '?').replace(/^@/, '').trim();
   const initial = (clean[0] || '?').toUpperCase();
@@ -20,13 +22,14 @@ export default function UserAvatar({ username = '', avatarId = '', size = 'md' }
     overflow: 'hidden',
   };
 
-  if (avatar?.image) {
+  if (avatar?.image && !imageFailed) {
     return (
       <span className={`user-avatar user-avatar-${size} user-avatar-image-wrap`} style={commonStyle} aria-hidden="true">
         <img
           src={avatar.image}
           alt=""
           className="user-avatar-image"
+          onError={() => setImageFailed(true)}
           style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
         />
       </span>
