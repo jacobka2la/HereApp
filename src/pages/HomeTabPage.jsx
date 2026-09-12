@@ -52,7 +52,9 @@ export default function HomeTabPage() {
   const currentStreak = useMemo(() => {
     if (!uniqueVisitDays.length) return 0;
     const daySet = new Set(uniqueVisitDays);
-    let cursor = getCurrentDayKey();
+    const today = getCurrentDayKey();
+    let cursor = daySet.has(today) ? today : previousDayKey(today);
+    if (!daySet.has(cursor)) return 0;
     let streak = 0;
     while (daySet.has(cursor)) {
       streak += 1;
