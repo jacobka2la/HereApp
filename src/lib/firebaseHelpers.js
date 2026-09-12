@@ -15,6 +15,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getCurrentDayKey } from './day';
@@ -70,7 +71,11 @@ export function subscribeToInvitesForUser(uid, callback) {
   if (!uid) { callback([]); return () => {}; }
   const q = query(collection(db, 'invites'), where('toUid', '==', uid), where('status', '==', 'pending'));
   return onSnapshot(q, (snap) => {
-    const items = snap.docs.map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now() })).sort((a, b) => b.createdAtMillis - a.createdAtMillis);
+    const currentDayKey = getCurrentDayKey();
+    const items = snap.docs
+      .map((item) => ({ id: item.id, ...item.data(), createdAtMillis: item.data().createdAt?.toMillis?.() ?? item.data().createdAtMillis ?? Date.now() }))
+      .filter((item) => !item.dayKey || item.dayKey === currentDayKey)
+      .sort((a, b) => b.createdAtMillis - a.createdAtMillis);
     callback(items);
   });
 }
@@ -153,7 +158,7 @@ function publicProfileFromDoc(profileDoc) {
 }
 
 export async function findUserByUsername(username) {
-  const clean = username.trim().toLowerCase();
+  const clean = String(username || '').trim().toLowerCase().replace(/^@+/, '');
   if (!clean) return null;
   const usernameQuery = query(collection(db, 'publicProfiles'), where('username', '==', clean));
   const usernameSnap = await getDocs(usernameQuery);
@@ -188,11 +193,16 @@ export async function sendFriendRequest({ fromUid, fromUsername, toUid, toUserna
 }
 
 export async function respondToFriendRequest({ requestId, fromUid, fromUsername, toUid, toUsername, status }) {
-  await setDoc(doc(db, 'friendRequests', requestId), { status, respondedAt: serverTimestamp(), respondedAtMillis: Date.now() }, { merge: true });
-  if (status !== 'accepted') return;
-  const friendshipId = [fromUid, toUid].sort().join('_');
-  await setDoc(doc(db, 'friendships', friendshipId), { memberUids: [fromUid, toUid], userAUid: fromUid, userAUsername: fromUsername, userBUid: toUid, userBUsername: toUsername, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
-  createNotification({ toUid: fromUid, type: 'friend_accept', title: 'Friend Request Accepted', body: `@${toUsername} accepted your friend request.`, fromUid: toUid, fromUsername: toUsername });
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'friendRequests', requestId), { status, respondedAt: serverTimestamp(), respondedAtMillis: Date.now() }, { merge: true });
+  if (status === 'accepted') {
+    const friendshipId = [fromUid, toUid].sort().join('_');
+    batch.set(doc(db, 'friendships', friendshipId), { memberUids: [fromUid, toUid], userAUid: fromUid, userAUsername: fromUsername, userBUid: toUid, userBUsername: toUsername, createdAt: serverTimestamp(), createdAtMillis: Date.now() });
+  }
+  await batch.commit();
+  if (status === 'accepted') {
+    createNotification({ toUid: fromUid, type: 'friend_accept', title: 'Friend Request Accepted', body: `@${toUsername} accepted your friend request.`, fromUid: toUid, fromUsername: toUsername });
+  }
 }
 
 export async function upsertCheckIn({ uid, username, barId }) {
@@ -206,12 +216,27 @@ export async function upsertCheckIn({ uid, username, barId }) {
     const activeSnap = await transaction.get(activeRef);
     const userBarSnap = await transaction.get(userBarRef);
     const userStatsSnap = await transaction.get(userStatsRef);
-    const activeData = activeSnap.exists() ? activeSnap.data() : null;
+    let activeData = activeSnap.exists() ? activeSnap.data() : null;
     const userStatsData = userStatsSnap.exists() ? userStatsSnap.data() : {};
+
+    if (activeData?.barId && activeData.dayKey !== dayKey) {
+      if (activeData.checkinDocId) {
+        transaction.set(doc(db, 'checkins', activeData.checkinDocId), {
+          active: false,
+          leftAt: serverTimestamp(),
+          leftAtMillis: now,
+          updatedAt: serverTimestamp(),
+          updatedAtMillis: now,
+        }, { merge: true });
+      }
+      activeData = null;
+    }
+
     if (activeData?.barId) {
       if (activeData.barId === barId) throw new Error('ALREADY_CHECKED_IN');
       throw new Error(`ACTIVE_AT_OTHER_BAR_${activeData.barId}`);
     }
+
     const lastLeftAtMillis = userStatsData.lastLeftAtMillis ?? 0;
     const lastLeftBarId = userStatsData.lastLeftBarId ?? '';
     const elapsedSinceLeaving = lastLeftAtMillis ? now - lastLeftAtMillis : Number.POSITIVE_INFINITY;
@@ -325,13 +350,15 @@ export async function deleteCommentById(commentId) {
 
 export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message = '' }) {
   const now = Date.now();
-  const inviteId = `${fromUid}_${toUid}_${barId}`;
+  const dayKey = getCurrentDayKey();
+  const inviteId = `${fromUid}_${toUid}_${barId}_${dayKey}`;
   const inviteRef = doc(db, 'invites', inviteId);
   const inviteSnap = await getDoc(inviteRef);
   const previousSentAt = inviteSnap.data()?.sentAtMillis ?? 0;
-  if (inviteSnap.exists() && now - previousSentAt < INVITE_COOLDOWN_MS) throw new Error('INVITE_COOLDOWN');
-  await setDoc(inviteRef, { fromUid, fromUsername, toUid, toUsername, barId, barName, message, status: 'pending', sentAt: serverTimestamp(), sentAtMillis: now, createdAt: inviteSnap.exists() ? inviteSnap.data()?.createdAt ?? serverTimestamp() : serverTimestamp() }, { merge: true });
-  createNotification({ toUid, type: 'bar_invite', title: `@${fromUsername} invited you`, body: message || `Come to ${barName}.`, fromUid, fromUsername, barId, barName });
+  const isPending = inviteSnap.data()?.status === 'pending';
+  if (inviteSnap.exists() && isPending && now - previousSentAt < INVITE_COOLDOWN_MS) throw new Error('INVITE_COOLDOWN');
+  await setDoc(inviteRef, { fromUid, fromUsername, toUid, toUsername, barId, barName, message, dayKey, status: 'pending', sentAt: serverTimestamp(), sentAtMillis: now, createdAt: inviteSnap.exists() ? inviteSnap.data()?.createdAt ?? serverTimestamp() : serverTimestamp() }, { merge: true });
+  createNotification({ toUid, type: 'bar_invite', title: `@${fromUsername} invited you`, body: message || `Come to ${barName}.`, fromUid, fromUsername, barId, barName, meta: { dayKey } });
 }
 
 export async function dismissInvite(inviteId) {
