@@ -19,10 +19,10 @@ import {
 import { db } from '../firebase';
 import { getCurrentDayKey } from './day';
 import { msuBars } from './bars';
+import { getInviteCooldownRemaining } from './inviteCooldown';
 
 const SAME_BAR_REENTRY_COOLDOWN_MS = 20 * 60 * 1000;
 const OTHER_BAR_REENTRY_COOLDOWN_MS = 5 * 60 * 1000;
-const INVITE_COOLDOWN_MS = 5 * 60 * 1000;
 
 async function createNotification({ toUid, type, title, body, fromUid = '', fromUsername = '', barId = '', barName = '', meta = {} }) {
   if (!toUid) return;
@@ -325,13 +325,44 @@ export async function deleteCommentById(commentId) {
 
 export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message = '' }) {
   const now = Date.now();
-  const inviteId = `${fromUid}_${toUid}_${barId}`;
+  const dayKey = getCurrentDayKey();
+  const inviteId = `${fromUid}_${toUid}_${barId}_${dayKey}`;
   const inviteRef = doc(db, 'invites', inviteId);
-  const inviteSnap = await getDoc(inviteRef);
-  const previousSentAt = inviteSnap.data()?.sentAtMillis ?? 0;
-  if (inviteSnap.exists() && now - previousSentAt < INVITE_COOLDOWN_MS) throw new Error('INVITE_COOLDOWN');
-  await setDoc(inviteRef, { fromUid, fromUsername, toUid, toUsername, barId, barName, message, status: 'pending', sentAt: serverTimestamp(), sentAtMillis: now, createdAt: inviteSnap.exists() ? inviteSnap.data()?.createdAt ?? serverTimestamp() : serverTimestamp() }, { merge: true });
-  createNotification({ toUid, type: 'bar_invite', title: `@${fromUsername} invited you`, body: message || `Come to ${barName}.`, fromUid, fromUsername, barId, barName });
+  const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`);
+
+  await runTransaction(db, async (transaction) => {
+    // Cooldown documents are readable even before they exist. Reading the
+    // invite itself here caused every first invite to fail Firestore rules.
+    const cooldownSnap = await transaction.get(cooldownRef);
+    const previousSentAt = cooldownSnap.data()?.lastSentAtMillis ?? 0;
+    if (getInviteCooldownRemaining(previousSentAt, now) > 0) throw new Error('INVITE_COOLDOWN');
+
+    transaction.set(inviteRef, {
+      fromUid,
+      fromUsername,
+      toUid,
+      toUsername,
+      barId,
+      barName,
+      message,
+      dayKey,
+      status: 'pending',
+      sentAt: serverTimestamp(),
+      sentAtMillis: now,
+      createdAt: serverTimestamp(),
+      createdAtMillis: now,
+    }, { merge: true });
+    transaction.set(cooldownRef, {
+      fromUid,
+      toUid,
+      barId,
+      lastSentAt: serverTimestamp(),
+      lastSentAtMillis: now,
+    });
+  });
+
+  createNotification({ toUid, type: 'bar_invite', title: `@${fromUsername} invited you`, body: message || `Come to ${barName}.`, fromUid, fromUsername, barId, barName, meta: { dayKey } });
+  return { sentAtMillis: now };
 }
 
 export async function dismissInvite(inviteId) {
