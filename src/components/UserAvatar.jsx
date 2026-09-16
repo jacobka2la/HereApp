@@ -9,8 +9,8 @@ const sizeMap = {
 };
 
 export default function UserAvatar({ username = '', avatarId = '', size = 'md' }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const avatar = avatarId ? getAvatarById(avatarId) : null;
+  const [failedAvatarId, setFailedAvatarId] = useState('');
+  const avatar = avatarId && failedAvatarId !== avatarId ? getAvatarById(avatarId) : null;
   const clean = String(username || '?').replace(/^@/, '').trim();
   const initial = (clean[0] || '?').toUpperCase();
   const pixels = sizeMap[size] || sizeMap.md;
@@ -22,14 +22,14 @@ export default function UserAvatar({ username = '', avatarId = '', size = 'md' }
     overflow: 'hidden',
   };
 
-  if (avatar?.image && !imageFailed) {
+  if (avatar?.image) {
     return (
       <span className={`user-avatar user-avatar-${size} user-avatar-image-wrap`} style={commonStyle} aria-hidden="true">
         <img
           src={avatar.image}
           alt=""
           className="user-avatar-image"
-          onError={() => setImageFailed(true)}
+          onError={() => setFailedAvatarId(avatarId)}
           style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
         />
       </span>

@@ -10,7 +10,7 @@ export default function CommentItem({ comment, reactionCounts, activeReaction, o
   useEffect(() => {
     let cancelled = false;
 
-    if (!comment?.uid || comment?.avatarId) {
+    if (!comment?.uid) {
       setProfileAvatarId('');
       return () => { cancelled = true; };
     }
@@ -26,7 +26,9 @@ export default function CommentItem({ comment, reactionCounts, activeReaction, o
     return () => { cancelled = true; };
   }, [comment?.uid, comment?.avatarId]);
 
-  const avatarId = comment.avatarId || profileAvatarId;
+  // The public profile is authoritative. Old comments can contain an avatar
+  // copied before the user's final avatar selection was synchronized.
+  const avatarId = profileAvatarId || comment.avatarId;
 
   return (
     <article className="comment-card">

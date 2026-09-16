@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { msuBars } from '../lib/bars';
 import { getAvatarById } from '../lib/avatars';
+import { getInviteCooldownKey, getInviteCooldownRemaining } from '../lib/inviteCooldown';
 import {
   dismissInvite,
   findUserByUsername,
@@ -16,8 +17,6 @@ import {
   subscribeToInvitesForUser,
   subscribeToTodayCollection,
 } from '../lib/firebaseHelpers';
-
-const INVITE_COOLDOWN_MS = 5 * 60 * 1000;
 
 const panelStyle = {
   background: 'rgba(5, 15, 8, 0.94)',
@@ -49,12 +48,14 @@ function timeAgo(millis) {
 }
 
 function FriendAvatar({ avatarId, username, size = 58 }) {
-  const avatar = getAvatarById(avatarId);
+  const [failedAvatarId, setFailedAvatarId] = useState('');
+  const avatar = failedAvatarId === avatarId ? null : getAvatarById(avatarId);
   if (avatar) {
     return (
       <img
         src={avatar.image}
         alt=""
+        onError={() => setFailedAvatarId(avatarId)}
         style={{
           width: size,
           height: size,
@@ -151,7 +152,7 @@ export default function FriendsPage() {
     };
   }, [searchResult, checkins]);
 
-  const getCooldownRemaining = (uid) => Math.max(0, INVITE_COOLDOWN_MS - (Date.now() - (inviteCooldowns[uid] || 0)));
+  const getCooldownRemaining = (uid, barId) => getInviteCooldownRemaining(inviteCooldowns[getInviteCooldownKey(uid, barId)] || 0);
   const formatCooldown = (ms) => `${Math.floor(Math.ceil(ms / 1000) / 60)}:${String(Math.ceil(ms / 1000) % 60).padStart(2, '0')}`;
 
   const handleSearch = async () => {
@@ -196,14 +197,18 @@ export default function FriendsPage() {
   };
 
   const handleInviteFriendToBar = async (friend) => {
-    const remaining = getCooldownRemaining(friend.uid);
-    if (remaining > 0) return setSocialFeedback(`Wait ${formatCooldown(remaining)} Before Inviting Again.`);
     if (!activeBarMeta) return setSocialFeedback('Check Into A Bar First To Invite Friends.');
+    const cooldownKey = getInviteCooldownKey(friend.uid, activeBarMeta.id);
+    const remaining = getCooldownRemaining(friend.uid, activeBarMeta.id);
+    if (remaining > 0) return setSocialFeedback(`Wait ${formatCooldown(remaining)} Before Inviting Again.`);
     try {
-      await sendInvite({ fromUid: firebaseUser.uid, fromUsername: profile?.displayUsername || profile?.username, toUid: friend.uid, toUsername: friend.username, barId: activeBarMeta.id, barName: activeBarMeta.name, message: `Come To ${activeBarMeta.name}.` });
-      setInviteCooldowns((prev) => ({ ...prev, [friend.uid]: Date.now() }));
+      const result = await sendInvite({ fromUid: firebaseUser.uid, fromUsername: profile?.displayUsername || profile?.username, toUid: friend.uid, toUsername: friend.username, barId: activeBarMeta.id, barName: activeBarMeta.name, message: `Come To ${activeBarMeta.name}.` });
+      setInviteCooldowns((prev) => ({ ...prev, [cooldownKey]: result.sentAtMillis }));
       setSocialFeedback(`Invite Sent To @${friend.username}.`);
-    } catch { setSocialFeedback('Wait A Few Minutes Before Inviting Again.'); }
+    } catch (error) {
+      if (error?.message === 'INVITE_COOLDOWN') setSocialFeedback('Wait A Few Minutes Before Inviting Again.');
+      else setSocialFeedback('Could Not Send Invite. Please Try Again.');
+    }
   };
 
   return (
@@ -218,7 +223,7 @@ export default function FriendsPage() {
                 value={friendUsernameInput}
                 onChange={(event) => { setFriendUsernameInput(event.target.value); setSearchResult(null); setSentRequest(null); setSocialFeedback(''); }}
                 onKeyDown={(event) => { if (event.key === 'Enter') handleSearch(); }}
-                placeholder="Search Users By @Username"
+                placeholder="Search Users By Username"
                 autoCapitalize="none"
                 autoCorrect="off"
                 style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', color: 'white', fontSize: '.98rem' }}
@@ -282,7 +287,7 @@ export default function FriendsPage() {
           <div style={panelStyle}>
             <h2 style={{ margin: 0, fontSize: '1.18rem' }}>Your Friends</h2>
             {displayFriends.length ? displayFriends.map((friend) => {
-              const remaining = getCooldownRemaining(friend.uid);
+              const remaining = activeBarMeta ? getCooldownRemaining(friend.uid, activeBarMeta.id) : 0;
               const disabled = remaining > 0 || !activeBarMeta;
               return (
                 <div key={friend.id} style={rowStyle}>
