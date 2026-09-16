@@ -351,8 +351,10 @@ export async function deleteCommentById(commentId) {
 export async function sendInvite({ fromUid, fromUsername, toUid, toUsername, barId, barName, message = '' }) {
   const now = Date.now();
   const dayKey = getCurrentDayKey();
-  const inviteId = `${fromUid}_${toUid}_${barId}_${dayKey}`;
-  const inviteRef = doc(db, 'invites', inviteId);
+  // Every successful send must create a new document. The push notification
+  // Cloud Function listens for document creation, so reusing a deterministic
+  // ID would only update an earlier invite and would not trigger another push.
+  const inviteRef = doc(collection(db, 'invites'));
   const cooldownRef = doc(db, 'inviteCooldowns', `${fromUid}_${toUid}_${barId}`);
 
   await runTransaction(db, async (transaction) => {
