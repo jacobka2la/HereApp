@@ -106,7 +106,7 @@ exports.pushFriendRequest = onDocumentCreated('friendRequests/{requestId}', asyn
   });
 });
 
-exports.pushBarInvite = onDocumentCreated('invites/{inviteId}', async (event) => {
+exports.pushBarInviteOnCreate = onDocumentCreated('invites/{inviteId}', async (event) => {
   const invite = event.data?.data();
   if (!invite || invite.status !== 'pending') return;
 
